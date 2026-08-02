@@ -7,6 +7,7 @@ import {
   AudioContent,
   DownloadFile,
   FileContent,
+  GifAttachment,
   ImageContent,
   MAudio,
   MBadEncrypted,
@@ -37,7 +38,10 @@ import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { parseTwitterStatusUrl, testTwitterStatusUrl } from '../plugins/fixupx';
 import { parseYouTubeUrl, testYouTubeUrl } from '../plugins/youtube';
+import { MAX_GIF_EMBEDS, testGifUrl } from '../plugins/gif';
 import { getSpoiledUrls } from '../utils/dom';
+import { trimReplyFromBody } from '../utils/room';
+import { sanitizeForRegex, URL_REG } from '../utils/regex';
 import { IImageContent } from '../../types/matrix/common';
 
 type RenderMessageContentProps = {
@@ -66,6 +70,38 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
 }: RenderMessageContentProps) {
+  // The gif link whose raw text is hidden from the message body, because its
+  // own embed already shows it below. Only the first is hidden — any further
+  // gif links, up to the embed cap, still show as plain text alongside their
+  // own embeds. Past the cap none of them get an embed, so none get hidden
+  // either.
+  const { body: rawBody } = getContent<{ body?: unknown }>();
+  const trimmedBody = urlPreview && typeof rawBody === 'string' ? trimReplyFromBody(rawBody) : '';
+  const bodyGifUrls = [...new Set(trimmedBody.match(URL_REG) ?? [])].filter(testGifUrl);
+  const hiddenGifUrl =
+    bodyGifUrls.length > 0 && bodyGifUrls.length <= MAX_GIF_EMBEDS ? bodyGifUrls[0] : undefined;
+
+  const hideGifUrlFromBody = (renderBodyProps: {
+    body: string;
+    customBody?: string;
+  }): { body: string; customBody?: string } | undefined => {
+    if (!hiddenGifUrl) return renderBodyProps;
+
+    const escapedUrl = sanitizeForRegex(hiddenGifUrl);
+    const body = renderBodyProps.body
+      .replace(new RegExp(escapedUrl), '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+    // Also drops the anchor a rich client would have wrapped the link in.
+    const customBody = renderBodyProps.customBody
+      ?.replace(new RegExp(`<a\\b[^>]*href="${escapedUrl}"[^>]*>[\\s\\S]*?</a>`, 'i'), '')
+      .replace(new RegExp(escapedUrl), '');
+
+    // Nothing left to show once the hidden link was the message's only content.
+    if (body === '') return undefined;
+    return { body, customBody };
+  };
+
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
@@ -75,8 +111,12 @@ export function RenderMessageContent({
     // previews live in.
     const statusUrls = filteredUrls.filter(testTwitterStatusUrl);
     const youtubeUrls = filteredUrls.filter(testYouTubeUrl);
+    // A message stuffed with gif links falls back to a normal preview for all
+    // of them instead of embedding any, so the timeline is not flooded.
+    const gifUrls = filteredUrls.filter(testGifUrl);
+    const embedGifUrls = gifUrls.length <= MAX_GIF_EMBEDS ? gifUrls : [];
     const otherUrls = filteredUrls.filter(
-      (url) => !testTwitterStatusUrl(url) && !testYouTubeUrl(url)
+      (url) => !testTwitterStatusUrl(url) && !testYouTubeUrl(url) && !embedGifUrls.includes(url)
     );
 
     // An embed stays covered when the sender spoiled the link it came from.
@@ -113,6 +153,9 @@ export function RenderMessageContent({
             url={url}
             spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id)}
           />
+        ))}
+        {embedGifUrls.map((url) => (
+          <GifAttachment key={url} url={url} />
         ))}
         {otherUrls.length > 0 && (
           <UrlPreviewHolder>
@@ -188,14 +231,18 @@ export function RenderMessageContent({
       <MText
         edited={edited}
         content={getContent()}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
+        renderBody={(props) => {
+          const shownBody = hideGifUrlFromBody(props);
+          if (!shownBody) return null;
+          return (
+            <RenderBody
+              {...shownBody}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          );
+        }}
         renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
       />
     );
@@ -207,14 +254,18 @@ export function RenderMessageContent({
         displayName={displayName}
         edited={edited}
         content={getContent()}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
+        renderBody={(props) => {
+          const shownBody = hideGifUrlFromBody(props);
+          if (!shownBody) return null;
+          return (
+            <RenderBody
+              {...shownBody}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          );
+        }}
         renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
       />
     );
@@ -225,14 +276,18 @@ export function RenderMessageContent({
       <MNotice
         edited={edited}
         content={getContent()}
-        renderBody={(props) => (
-          <RenderBody
-            {...props}
-            highlightRegex={highlightRegex}
-            htmlReactParserOptions={htmlReactParserOptions}
-            linkifyOpts={linkifyOpts}
-          />
-        )}
+        renderBody={(props) => {
+          const shownBody = hideGifUrlFromBody(props);
+          if (!shownBody) return null;
+          return (
+            <RenderBody
+              {...shownBody}
+              highlightRegex={highlightRegex}
+              htmlReactParserOptions={htmlReactParserOptions}
+              linkifyOpts={linkifyOpts}
+            />
+          );
+        }}
         renderUrlsPreview={urlPreview ? renderUrlsPreview : undefined}
       />
     );
