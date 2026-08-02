@@ -24,13 +24,19 @@ import {
   UnsupportedContent,
   VideoContent,
 } from './message';
-import { TweetPreviewCard, UrlPreviewCard, UrlPreviewHolder } from './url-preview';
+import {
+  TweetPreviewCard,
+  UrlPreviewCard,
+  UrlPreviewHolder,
+  YouTubePreviewCard,
+} from './url-preview';
 import { Image, MediaControl, Video } from './media';
 import { ImageViewer } from './image-viewer';
 import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { parseTwitterStatusUrl, testTwitterStatusUrl } from '../plugins/fixupx';
+import { parseYouTubeUrl, testYouTubeUrl } from '../plugins/youtube';
 import { getSpoiledUrls } from '../utils/dom';
 import { IImageContent } from '../../types/matrix/common';
 
@@ -64,20 +70,32 @@ export function RenderMessageContent({
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
     if (filteredUrls.length === 0) return undefined;
 
-    // Status links get their own block level embed, so they are kept out of the
-    // horizontally scrolling holder the homeserver backed previews live in.
+    // Status links and video links get their own block level embed, so they are
+    // kept out of the horizontally scrolling holder the homeserver backed
+    // previews live in.
     const statusUrls = filteredUrls.filter(testTwitterStatusUrl);
-    const otherUrls = filteredUrls.filter((url) => !testTwitterStatusUrl(url));
+    const youtubeUrls = filteredUrls.filter(testYouTubeUrl);
+    const otherUrls = filteredUrls.filter(
+      (url) => !testTwitterStatusUrl(url) && !testYouTubeUrl(url)
+    );
 
     // An embed stays covered when the sender spoiled the link it came from.
-    // Matched on status id, because the url regex swallows the trailing spoiler
-    // delimiters and so does not match the link text inside the span verbatim.
+    // Matched on status/video id, because the url regex swallows the trailing
+    // spoiler delimiters and so does not match the link text inside the span
+    // verbatim.
     const { formatted_body: formattedBody } = getContent<{ formatted_body?: string }>();
+    const spoiledUrls = getSpoiledUrls(
+      typeof formattedBody === 'string' ? formattedBody : undefined
+    );
     const spoiledStatusIds = new Set(
-      Array.from(
-        getSpoiledUrls(typeof formattedBody === 'string' ? formattedBody : undefined),
-        (spoiledUrl) => parseTwitterStatusUrl(spoiledUrl)?.id
-      ).filter((id) => id !== undefined)
+      Array.from(spoiledUrls, (spoiledUrl) => parseTwitterStatusUrl(spoiledUrl)?.id).filter(
+        (id) => id !== undefined
+      )
+    );
+    const spoiledYouTubeIds = new Set(
+      Array.from(spoiledUrls, (spoiledUrl) => parseYouTubeUrl(spoiledUrl)?.id).filter(
+        (id) => id !== undefined
+      )
     );
 
     return (
@@ -87,6 +105,13 @@ export function RenderMessageContent({
             key={url}
             url={url}
             spoiler={spoiledStatusIds.has(parseTwitterStatusUrl(url)?.id)}
+          />
+        ))}
+        {youtubeUrls.map((url) => (
+          <YouTubePreviewCard
+            key={url}
+            url={url}
+            spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id)}
           />
         ))}
         {otherUrls.length > 0 && (
