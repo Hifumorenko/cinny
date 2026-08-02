@@ -148,6 +148,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [replyDraft, setReplyDraft] = useAtom(roomIdToReplyDraftAtomFamily(roomId));
     const replyUserID = replyDraft?.userId;
 
+    // Shared with sticker/upload sends below, so replying isn't silently
+    // dropped for anything but a typed text message — it used to only be
+    // wired up in `submit()`, so picking a sticker or sending an attached
+    // image/file while a reply was active sent it as a normal, unrelated
+    // message instead.
+    const getReplyRelation = useCallback((): IContent['m.relates_to'] | undefined => {
+      if (!replyDraft) return undefined;
+      const relation: NonNullable<IContent['m.relates_to']> = {
+        'm.in_reply_to': {
+          event_id: replyDraft.eventId,
+        },
+      };
+      if (replyDraft.relation?.rel_type === RelationType.Thread) {
+        relation.event_id = replyDraft.relation.event_id;
+        relation.rel_type = RelationType.Thread;
+        relation.is_falling_back = false;
+      }
+      return relation;
+    }, [replyDraft]);
+
     const powerLevelTags = usePowerLevelTags(room, powerLevels);
     const creatorsTag = useRoomCreatorsTag();
     const getMemberPowerTag = useGetMemberPowerTag(room, creators, powerLevels);
@@ -305,7 +325,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         return getFileMsgContent(fileItem, upload.mxc, name);
       });
       handleCancelUpload(uploads);
-      const contents = fulfilledPromiseSettledResult(await Promise.allSettled(contentsPromises));
+      const uploadedContents = fulfilledPromiseSettledResult(
+        await Promise.allSettled(contentsPromises)
+      );
+      const relation = getReplyRelation();
+      const contents = relation
+        ? uploadedContents.map((content) => ({ ...content, 'm.relates_to': relation }))
+        : uploadedContents;
+      if (relation) setReplyDraft(undefined);
       contents.forEach((content) => mx.sendMessage(roomId, content as any));
     };
 
@@ -373,24 +400,26 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         content.format = 'org.matrix.custom.html';
         content.formatted_body = formattedBody;
       }
-      if (replyDraft) {
-        content['m.relates_to'] = {
-          'm.in_reply_to': {
-            event_id: replyDraft.eventId,
-          },
-        };
-        if (replyDraft.relation?.rel_type === RelationType.Thread) {
-          content['m.relates_to'].event_id = replyDraft.relation.event_id;
-          content['m.relates_to'].rel_type = RelationType.Thread;
-          content['m.relates_to'].is_falling_back = false;
-        }
+      const relation = getReplyRelation();
+      if (relation) {
+        content['m.relates_to'] = relation;
       }
       mx.sendMessage(roomId, content as any);
       resetEditor(editor);
       resetEditorHistory(editor);
       setReplyDraft(undefined);
       sendTypingStatus(false);
-    }, [mx, roomId, editor, replyDraft, sendTypingStatus, setReplyDraft, isMarkdown, commands]);
+    }, [
+      mx,
+      roomId,
+      editor,
+      replyDraft,
+      sendTypingStatus,
+      setReplyDraft,
+      isMarkdown,
+      commands,
+      getReplyRelation,
+    ]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -452,11 +481,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         await getImageUrlBlob(stickerUrl)
       );
 
+      const relation = getReplyRelation();
       mx.sendEvent(roomId, EventType.Sticker, {
         body: label,
         url: mxc,
         info,
+        ...(relation && { 'm.relates_to': relation }),
       });
+      if (relation) setReplyDraft(undefined);
     };
 
     return (
