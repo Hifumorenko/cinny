@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import { Box, Chip, Icon, Icons, Spinner, Text, as, config } from 'folds';
 import { ImageOverlay } from '../ImageOverlay';
 import { ImageViewer } from '../image-viewer';
+import { useMediaGalleryNav } from '../../hooks/useMediaGalleryNav';
 import { UrlPreviewDescription } from './UrlPreview';
 // Reuses the spoiler blur and overlay the message media content already uses.
 import * as contentCss from '../message/content/style.css';
@@ -171,6 +172,9 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
     return getGifImageUrl(item);
   };
 
+  const closeViewer = useCallback(() => setViewing(undefined), []);
+  const { onPrev, onNext } = useMediaGalleryNav(viewing?.src, closeViewer);
+
   if (media.length === 0) return null;
   const count = media.length as 1 | 2 | 3 | 4;
 
@@ -214,6 +218,11 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
                     target="_blank"
                     rel="noreferrer"
                     title={photo ? item.altText : undefined}
+                    // Not a navigation target while spoilered: its own click
+                    // handler refuses to open a blurred frame, so offering it
+                    // to prev/next would stall navigation on something that
+                    // cannot open. Revealing it puts it back in the gallery.
+                    data-media-nav={blurred ? undefined : src}
                     onClick={(evt) => {
                       // A blurred frame must not be openable in the viewer.
                       if (blurred) {
@@ -278,6 +287,8 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
               avatarUrl={author.avatar_url ?? undefined}
               timestamp={timestamp}
               openUrl={postUrl}
+              onPrev={onPrev}
+              onNext={onNext}
             />
           )}
         />

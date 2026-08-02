@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -29,13 +29,16 @@ import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
 import { decryptFile, downloadEncryptedMedia, mxcUrlToHttp } from '../../../utils/matrix';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
-import { ModalMedia } from '../../../styles/Modal.css';
+import { ModalMedia, OverlayBackdropNoAnimation } from '../../../styles/Modal.css';
 import { validBlurHash } from '../../../utils/blurHash';
+import { useMediaGalleryNav } from '../../../hooks/useMediaGalleryNav';
 
 type RenderViewerProps = {
   src: string;
   alt: string;
   requestClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
 };
 type RenderImageProps = {
   alt: string;
@@ -120,20 +123,32 @@ export const ImageContent = as<'div', ImageContentProps>(
       if (autoPlay) loadSrc();
     }, [autoPlay, loadSrc]);
 
+    const modalRef = useRef<HTMLDivElement>(null);
+    const mediaKey =
+      viewable && srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+    const closeViewer = useCallback(() => setViewer(false), []);
+    const { onPrev, onNext } = useMediaGalleryNav(mediaKey, closeViewer);
+
     return (
       <Box className={classNames(css.RelativeBase, className)} {...props} ref={ref}>
         {viewable && srcState.status === AsyncStatus.Success && (
-          <Overlay open={viewer} backdrop={<OverlayBackdrop />}>
+          <Overlay
+            open={viewer}
+            backdrop={<OverlayBackdrop className={OverlayBackdropNoAnimation} />}
+          >
             <OverlayCenter>
               <FocusTrap
                 focusTrapOptions={{
-                  initialFocus: false,
+                  initialFocus: () => modalRef.current ?? false,
                   onDeactivate: () => setViewer(false),
                   clickOutsideDeactivates: true,
                   escapeDeactivates: stopPropagation,
                 }}
               >
                 <Modal
+                  ref={modalRef}
+                  // Focusable only programmatically — never a tab stop of its own.
+                  tabIndex={-1}
                   className={ModalMedia}
                   size="500"
                   onContextMenu={(evt: any) => evt.stopPropagation()}
@@ -142,6 +157,8 @@ export const ImageContent = as<'div', ImageContentProps>(
                     src: srcState.data,
                     alt: body,
                     requestClose: () => setViewer(false),
+                    onPrev,
+                    onNext,
                   })}
                 </Modal>
               </FocusTrap>
@@ -197,6 +214,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                     href={srcState.data}
                     target="_blank"
                     rel="noreferrer"
+                    data-media-nav={mediaKey}
                     onClick={(evt) => {
                       // Let a middle click, or a modifier held on a plain
                       // click, open the media in a new tab like any link.
@@ -213,7 +231,12 @@ export const ImageContent = as<'div', ImageContentProps>(
 
             return (
               <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
-                <button className={css.MediaButton} type="button" onClick={() => setViewer(true)}>
+                <button
+                  className={css.MediaButton}
+                  type="button"
+                  data-media-nav={mediaKey}
+                  onClick={() => setViewer(true)}
+                >
                   {image}
                 </button>
               </Box>

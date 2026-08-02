@@ -90,6 +90,31 @@ export const CloseButton = style([
   },
 ]);
 
+export const NavButton = style([
+  DefaultReset,
+  {
+    position: 'absolute',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    zIndex: 2,
+    backgroundColor: FLOATING_SURFACE,
+  },
+]);
+
+export const NavButtonPrev = style([
+  DefaultReset,
+  {
+    left: config.space.S300,
+  },
+]);
+
+export const NavButtonNext = style([
+  DefaultReset,
+  {
+    right: config.space.S300,
+  },
+]);
+
 export const ImageViewerContent = style([
   DefaultReset,
   {

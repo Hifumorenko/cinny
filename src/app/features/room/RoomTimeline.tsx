@@ -97,6 +97,7 @@ import {
 import { markAsRead } from '../../utils/notifications';
 import { useDebounce } from '../../hooks/useDebounce';
 import { getResizeObserverEntry, useResizeObserver } from '../../hooks/useResizeObserver';
+import { GALLERY_NAV_ATTR } from '../../hooks/useMediaGalleryNav';
 import * as css from './RoomTimeline.css';
 import { inSameDay, minuteDifference, timeDayMonthYear, today, yesterday } from '../../utils/time';
 import { createMentionElement, isEmptyEditor, moveCursor } from '../../components/editor';
@@ -793,7 +794,11 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   // Stay at bottom when the timeline itself grows after being laid out, which
   // happens whenever content finishes loading late — a link preview resolving,
   // or an image without known dimensions decoding — under a message that was
-  // already scrolled to. Someone reading history is left where they are.
+  // already scrolled to. Someone reading history is left where they are, and
+  // so is the media viewer's prev/next navigation while it is driving this
+  // scroller to paginate older media in (see GALLERY_NAV_ATTR) — that growth
+  // is the pagination it asked for, not late-loading content under a reader
+  // who is sitting at the bottom.
   useResizeObserver(
     useMemo(
       () => (entries) => {
@@ -806,7 +811,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         const scrollElement = getScrollElement();
         if (!contentEntry || !scrollElement) return;
 
-        if (stickToBottomRef.current) {
+        if (stickToBottomRef.current && !scrollElement.hasAttribute(GALLERY_NAV_ATTR)) {
           scrollToBottom(scrollElement);
         }
       },
@@ -1858,7 +1863,9 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           </Chip>
         </TimelineFloat>
       )}
-      <Scroll ref={scrollRef} visibility="Hover">
+      {/* Marks the room timeline's own scroll container, so the image viewer's
+          prev/next navigation knows it can step across messages here. */}
+      <Scroll ref={scrollRef} visibility="Hover" data-room-timeline-scroll="">
         <Box
           direction="Column"
           justifyContent="End"

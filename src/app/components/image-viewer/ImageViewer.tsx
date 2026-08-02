@@ -1,5 +1,5 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import dayjs from 'dayjs';
 import FileSaver from 'file-saver';
 import classNames from 'classnames';
@@ -12,6 +12,7 @@ import { UserAvatar } from '../user-avatar';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { timeHourMinute } from '../../utils/time';
+import { getGalleryNavDirection } from '../../hooks/useMediaGalleryNav';
 
 export type ImageViewerProps = {
   alt: string;
@@ -30,6 +31,9 @@ export type ImageViewerProps = {
   timestamp?: number;
   /** What "Open in New Tab" opens, when it should not be `downloadSrc`/`src` — e.g. the tweet a photo came from, rather than the bare image file. */
   openUrl?: string;
+  /** Step to the previous/next media in the room timeline. Omitted entirely when there is nothing to step through. */
+  onPrev?: () => void;
+  onNext?: () => void;
 };
 
 /** How much one notch of a wheel/trackpad changes the zoom level. */
@@ -63,6 +67,8 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       avatarUrl,
       timestamp,
       openUrl,
+      onPrev,
+      onNext,
       ...props
     },
     ref
@@ -137,6 +143,31 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const handleBackdropClick = (evt: React.MouseEvent) => {
       if (evt.target === evt.currentTarget) requestClose();
     };
+
+    // The overlay only mounts this component while it is actually open (see
+    // ImageOverlay/ImageContent), so a document-level listener here is safe —
+    // it cannot fire while some other part of the app has focus.
+    useEffect(() => {
+      const handleKeyDown = (evt: KeyboardEvent) => {
+        const direction = getGalleryNavDirection(evt);
+        if (direction === undefined) return;
+        // Navigating closes this viewer and briefly hands focus back to
+        // whatever had it before (usually the composer, via the focus trap's
+        // own cleanup) before the next one opens. Without this, the browser
+        // would still run its default action for the keypress — typing the
+        // letter into that now-focused composer. (A second, standalone
+        // shield in useMediaGalleryNav covers the rest of the gap, where
+        // this listener isn't even mounted yet/anymore to catch it.)
+        evt.preventDefault();
+        // A held-down (or OS auto-repeating) key would otherwise fire many
+        // overlapping navigations before the first even finishes.
+        if (evt.repeat) return;
+        if (direction === -1) onPrev?.();
+        else onNext?.();
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [onPrev, onNext]);
 
     return (
       <Box className={classNames(css.ImageViewer, className)} {...props} ref={ref}>
@@ -239,6 +270,32 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             <Icon style={{ color: 'white' }} size="100" src={Icons.Cross} />
           </IconButton>
         </Box>
+        {onPrev && (
+          <IconButton
+            className={classNames(css.NavButton, css.NavButtonPrev)}
+            variant="SurfaceVariant"
+            fill="None"
+            size="500"
+            radii="Pill"
+            onClick={onPrev}
+            aria-label="Previous"
+          >
+            <Icon style={{ color: 'white' }} size="200" src={Icons.ChevronLeft} />
+          </IconButton>
+        )}
+        {onNext && (
+          <IconButton
+            className={classNames(css.NavButton, css.NavButtonNext)}
+            variant="SurfaceVariant"
+            fill="None"
+            size="500"
+            radii="Pill"
+            onClick={onNext}
+            aria-label="Next"
+          >
+            <Icon style={{ color: 'white' }} size="200" src={Icons.ChevronRight} />
+          </IconButton>
+        )}
         <Box
           grow="Yes"
           className={css.ImageViewerContent}

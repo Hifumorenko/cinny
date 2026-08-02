@@ -29,6 +29,37 @@ export const ModalMedia = style({
       boxShadow: 'none',
       borderRadius: 0,
       overflow: 'visible',
+      // The Modal component's own pop-in animation is what makes stepping to
+      // the next/previous media (which closes one viewer and opens another)
+      // read as a jarring reopen rather than an instant swap — the base
+      // (non-animated) styles already leave it fully visible, so dropping
+      // the animation is a safe no-op for a first open too.
+      animation: 'none',
+      // Promotes this to its own compositing layer. Gallery navigation
+      // mounts/unmounts this element (and the backdrop below it, and a
+      // matching scrim during the swap — see useMediaGalleryNav) several
+      // times in quick succession; without a layer of its own, each of those
+      // has nothing to isolate it from whatever it overlaps, so the browser
+      // repaints the *shared* layer underneath — the room timeline — on
+      // every one, even though none of its pixels actually changed. That
+      // repaint is what reads as the room flickering behind the viewer.
+      transform: 'translateZ(0)',
+    },
+  },
+});
+
+/**
+ * Same reasoning as ModalMedia's `animation: none` — without this the
+ * backdrop still fades in from transparent on every navigation step, even
+ * though the Modal above it no longer animates.
+ */
+export const OverlayBackdropNoAnimation = style({
+  selectors: {
+    '&&': {
+      animation: 'none',
+      // See ModalMedia's own `transform: translateZ(0)` — same reasoning,
+      // applied to the other half of the same overlay.
+      transform: 'translateZ(0)',
     },
   },
 });

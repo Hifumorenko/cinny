@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import classNames from 'classnames';
 import { Box, Button, Chip, Icon, Icons, Spinner, Text, as } from 'folds';
 import { Attachment, AttachmentBox } from './attachment';
 import { ImageOverlay } from '../ImageOverlay';
 import { ImageViewer } from '../image-viewer';
+import { useMediaGalleryNav } from '../../hooks/useMediaGalleryNav';
 import * as contentCss from './content/style.css';
 import * as css from './GifAttachment.css';
 
@@ -30,6 +31,9 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
       setError(false);
       setLoaded(false);
     };
+
+    const closeViewer = useCallback(() => setViewer(false), []);
+    const { onPrev, onNext } = useMediaGalleryNav(url, closeViewer);
 
     return (
       <Attachment {...props} ref={ref} outlined={outlined} className={css.GifAttachmentRoot}>
@@ -65,6 +69,11 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
                 href={url}
                 target="_blank"
                 rel="noreferrer"
+                // Not a navigation target while spoilered: its own click
+                // handler refuses to open a blurred frame, so offering it to
+                // prev/next would stall navigation on something that cannot
+                // open. Revealing it puts it back in the gallery.
+                data-media-nav={blurred ? undefined : url}
                 onClick={(evt) => {
                   // A blurred frame must not be openable in the viewer.
                   if (blurred) {
@@ -129,6 +138,8 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
               senderName={senderName}
               avatarUrl={avatarUrl}
               timestamp={timestamp}
+              onPrev={onPrev}
+              onNext={onNext}
             />
           )}
         />
