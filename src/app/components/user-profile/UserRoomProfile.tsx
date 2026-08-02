@@ -9,6 +9,7 @@ import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoom } from '../../hooks/useRoom';
 import { useUserPresence } from '../../hooks/useUserPresence';
+import { PresenceStatusText } from '../presence';
 import { IgnoredUserAlert, MutualRoomsChip, OptionsChip, ServerChip, ShareChip } from './UserChips';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { PowerChip } from './PowerChip';
@@ -58,6 +59,7 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
   const avatarUrl = (avatarMxc && mxcUrlToHttp(mx, avatarMxc, useAuthentication)) ?? undefined;
 
   const presence = useUserPresence(userId);
+  const showPresence = presence && presence.lastActiveTs !== 0;
 
   const handleMessage = () => {
     closeUserRoomProfile();
@@ -72,10 +74,11 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
       <UserHero
         userId={userId}
         avatarUrl={avatarUrl}
-        presence={presence && presence.lastActiveTs !== 0 ? presence : undefined}
+        presence={showPresence ? presence : undefined}
       />
       <Box direction="Column" gap="500" style={{ padding: config.space.S400 }}>
         <Box direction="Column" gap="400">
+          {showPresence && <PresenceStatusText status={presence.status} />}
           <Box gap="400" alignItems="Start">
             <UserHeroName displayName={displayName} userId={userId} />
             {userId !== myUserId && (

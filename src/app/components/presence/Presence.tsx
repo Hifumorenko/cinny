@@ -59,6 +59,20 @@ export function PresenceBadge({ presence, status, size }: PresenceBadgeProps) {
   );
 }
 
+type PresenceStatusTextProps = {
+  status?: string;
+};
+/** The custom status message a user set for themself, not the presence state. */
+export function PresenceStatusText({ status }: PresenceStatusTextProps) {
+  if (!status) return null;
+
+  return (
+    <Text size="T200" priority="300" truncate>
+      {status}
+    </Text>
+  );
+}
+
 type AvatarPresenceProps = {
   badge: ReactNode;
   variant?: ContainerColor;
