@@ -51,7 +51,7 @@ import { eventWithShortcode, factoryEventSentBy, getMxIdLocalPart } from '../../
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator, ItemRange } from '../../hooks/useVirtualPaginator';
 import { useAlive } from '../../hooks/useAlive';
-import { editableActiveElement, scrollToBottom } from '../../utils/dom';
+import { editableActiveElement, isIntersectingScrollView, scrollToBottom } from '../../utils/dom';
 import {
   DefaultPlaceholder,
   CompactPlaceholder,
@@ -650,13 +650,34 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           scrollToBottomRef.current.count += 1;
           scrollToBottomRef.current.smooth = true;
 
-          setTimeline((ct) => ({
-            ...ct,
-            range: {
-              start: ct.range.start + 1,
-              end: ct.range.end + 1,
-            },
-          }));
+          setTimeline((ct) => {
+            // Advancing `start` in lockstep with `end` bounds the render
+            // window so a long-lived session doesn't load every message
+            // forever — but doing it unconditionally evicts whatever
+            // currently sits at the front of the window even when it's
+            // still on screen (e.g. a video near the top of a short room),
+            // which then remounts — and for a video, resets playback — on
+            // every single new message. Only advance `start` once that
+            // item has actually scrolled out of view, the same way the
+            // viewport-aware trim in useVirtualPaginator's own pagination
+            // already behaves.
+            const scrollElement = scrollRef.current;
+            const frontItemElement = scrollElement?.querySelector(
+              `[data-message-item="${ct.range.start}"]`
+            ) as HTMLElement | null;
+            const frontItemVisible =
+              !!frontItemElement &&
+              !!scrollElement &&
+              isIntersectingScrollView(scrollElement, frontItemElement);
+
+            return {
+              ...ct,
+              range: {
+                start: frontItemVisible ? ct.range.start : ct.range.start + 1,
+                end: ct.range.end + 1,
+              },
+            };
+          });
           return;
         }
         setTimeline((ct) => ({ ...ct }));
