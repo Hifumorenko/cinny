@@ -132,6 +132,5 @@ export const ImageViewerImg = style([
     height: 'auto',
     maxWidth: '100%',
     maxHeight: '100%',
-    transition: 'transform 100ms linear',
   },
 ]);

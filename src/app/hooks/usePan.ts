@@ -16,7 +16,7 @@ export type PanBounds = {
   y: number;
 };
 
-const clamp = (value: number, max: number) => Math.min(max, Math.max(-max, value));
+export const clamp = (value: number, max: number) => Math.min(max, Math.max(-max, value));
 
 export const usePan = (active: boolean, zoom: number, getBounds?: () => PanBounds | undefined) => {
   const [pan, setPan] = useState<Pan>(INITIAL_PAN);

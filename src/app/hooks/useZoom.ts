@@ -28,5 +28,7 @@ export const useZoom = (step: number, min = 0.1, max = 5) => {
     zoomIn,
     zoomOut,
     zoomBy,
+    min,
+    max,
   };
 };

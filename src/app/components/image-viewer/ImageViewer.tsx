@@ -6,7 +6,7 @@ import classNames from 'classnames';
 import { Avatar, Box, Icon, IconButton, Icons, Text, as } from 'folds';
 import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
-import { PanBounds, usePan } from '../../hooks/usePan';
+import { PanBounds, clamp, usePan } from '../../hooks/usePan';
 import { downloadMedia } from '../../utils/matrix';
 import { UserAvatar } from '../user-avatar';
 import { useSetting } from '../../state/hooks/settings';
@@ -74,31 +74,43 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     ref
   ) => {
     const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-    const { zoom, setZoom, zoomBy } = useZoom(0.2);
+    const { zoom, setZoom, min: minZoom, max: maxZoom } = useZoom(0.2);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
+
     /**
-     * How far the image may be dragged off-center. `translateX`/`Y` live in
-     * pre-scale units, so the on-screen (post-scale) limit is divided back
-     * down by the current zoom. The strict version of this bound stops an
-     * edge exactly at the middle of the viewer, which reads as a hard wall —
-     * `PAN_SLACK` adds room to keep pulling past that, most of the way to the
-     * screen edge, while still stopping short of losing the image entirely.
+     * How far the image may be dragged off-center, for `targetZoom` (the
+     * current zoom if omitted). `translateX`/`Y` live in pre-scale units, so
+     * the on-screen (post-scale) limit is divided back down by that zoom.
+     * The strict version of this bound stops an edge exactly at the middle
+     * of the viewer, which reads as a hard wall — `PAN_SLACK` adds room to
+     * keep pulling past that, most of the way to the screen edge, while
+     * still stopping short of losing the image entirely.
+     *
+     * Accepts a zoom other than the current one so a caller about to change
+     * zoom can clamp its pan for where the image is *headed*, before that
+     * lands and `imgRect` itself reflects it — the image's on-screen rect
+     * only updates once React re-renders with the new zoom, one tick behind
+     * a synchronous caller like `handleWheel`.
      */
-    const getBounds = (): PanBounds | undefined => {
+    const getBounds = (targetZoom: number = zoom): PanBounds | undefined => {
       const container = containerRef.current;
       const img = imgRef.current;
       if (!container || !img) return undefined;
       const containerRect = container.getBoundingClientRect();
-      // The image's own rect already reflects the current zoom — translate
-      // shifts position, not size — so this holds regardless of current pan.
+      // The image's own rect reflects whatever zoom last actually rendered.
+      // Dividing out that zoom and back in at `targetZoom` projects what the
+      // rect will be once the DOM catches up — its unscaled size is
+      // constant, so this holds regardless of current pan.
       const imgRect = img.getBoundingClientRect();
+      const projectedWidth = (imgRect.width / zoom) * targetZoom;
+      const projectedHeight = (imgRect.height / zoom) * targetZoom;
       const maxScreenX =
-        Math.max(0, (imgRect.width - containerRect.width) / 2) + containerRect.width * PAN_SLACK;
+        Math.max(0, (projectedWidth - containerRect.width) / 2) + containerRect.width * PAN_SLACK;
       const maxScreenY =
-        Math.max(0, (imgRect.height - containerRect.height) / 2) + containerRect.height * PAN_SLACK;
-      return { x: maxScreenX / zoom, y: maxScreenY / zoom };
+        Math.max(0, (projectedHeight - containerRect.height) / 2) + containerRect.height * PAN_SLACK;
+      return { x: maxScreenX / targetZoom, y: maxScreenY / targetZoom };
     };
 
     // Always active: even at zoom 1 a wide/tall image can outgrow the viewer
@@ -112,7 +124,45 @@ export const ImageViewer = as<'div', ImageViewerProps>(
 
     const handleWheel = (evt: React.WheelEvent) => {
       evt.preventDefault();
-      zoomBy(-evt.deltaY * WHEEL_ZOOM_SENSITIVITY);
+      // Multiplicative, not additive: scaling `zoom` by a constant ratio per
+      // tick (rather than shifting it by a constant amount) keeps the
+      // *percentage* change per tick the same at any zoom level, which is
+      // what reads as a constant pace. An additive step feels fast when
+      // zoomed out (a fixed amount is a big fraction of a small zoom) and
+      // slow when zoomed in (that same fixed amount is a tiny fraction of a
+      // large one).
+      const newZoom = Math.min(
+        maxZoom,
+        Math.max(minZoom, zoom * Math.exp(-evt.deltaY * WHEEL_ZOOM_SENSITIVITY))
+      );
+      if (newZoom === zoom) return;
+
+      const container = containerRef.current;
+      if (!container) {
+        setZoom(newZoom);
+        return;
+      }
+
+      // `pan` lives in pre-scale units, so keeping the point under the cursor
+      // stationary on screen means shifting it by how much the point's own
+      // *scaled* offset from center just changed, converted back down into
+      // those pre-scale units via the new zoom.
+      const rect = container.getBoundingClientRect();
+      const mouseX = evt.clientX - (rect.left + rect.width / 2);
+      const mouseY = evt.clientY - (rect.top + rect.height / 2);
+      const rawTranslateX = pan.translateX + mouseX * (1 / newZoom - 1 / zoom);
+      const rawTranslateY = pan.translateY + mouseY * (1 / newZoom - 1 / zoom);
+
+      // Clamp for the zoom this is headed to *before* setting it. Leaving
+      // that to usePan's own post-render clamp effect meant the unclamped
+      // (sometimes far out of range) pan rendered for a frame first, then
+      // visibly snapped back once the effect caught up — the "teleport".
+      const bounds = getBounds(newZoom);
+      setPan({
+        translateX: bounds ? clamp(rawTranslateX, bounds.x) : rawTranslateX,
+        translateY: bounds ? clamp(rawTranslateY, bounds.y) : rawTranslateY,
+      });
+      setZoom(newZoom);
     };
 
     const handleResetZoom = () => {
@@ -310,9 +360,6 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             className={css.ImageViewerImg}
             style={{
               cursor,
-              // The transition is for zoom changes; a drag must track the
-              // cursor 1:1, with nothing smoothing it into place after.
-              transition: cursor === 'grabbing' ? 'none' : undefined,
               transform: `scale(${zoom}) translate(${pan.translateX}px, ${pan.translateY}px)`,
             }}
             src={src}
