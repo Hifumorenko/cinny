@@ -39,6 +39,7 @@ export interface Settings {
   encUrlPreview: boolean;
   showHiddenEvents: boolean;
   legacyUsernameColor: boolean;
+  randomizeFilename: boolean;
 
   showNotifications: boolean;
   isNotificationSounds: boolean;
@@ -73,6 +74,7 @@ const defaultSettings: Settings = {
   encUrlPreview: false,
   showHiddenEvents: false,
   legacyUsernameColor: false,
+  randomizeFilename: false,
 
   showNotifications: true,
   isNotificationSounds: true,

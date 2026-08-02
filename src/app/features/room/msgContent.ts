@@ -46,16 +46,18 @@ const generateThumbnailContent = async (
 export const getImageMsgContent = async (
   mx: MatrixClient,
   item: TUploadItem,
-  mxc: string
+  mxc: string,
+  name?: string
 ): Promise<IContent> => {
   const { file, originalFile, encInfo, metadata } = item;
   const [imgError, imgEl] = await to(loadImageElement(getImageFileUrl(originalFile)));
   if (imgError) console.warn(imgError);
 
+  const filename = name ?? (file instanceof File ? file.name : 'file');
   const content: IContent = {
     msgtype: MsgType.Image,
-    filename: file.name,
-    body: file.name,
+    filename,
+    body: filename,
     [MATRIX_SPOILER_PROPERTY_NAME]: metadata.markedAsSpoiler,
   };
   if (imgEl) {
@@ -80,17 +82,19 @@ export const getImageMsgContent = async (
 export const getVideoMsgContent = async (
   mx: MatrixClient,
   item: TUploadItem,
-  mxc: string
+  mxc: string,
+  name?: string
 ): Promise<IContent> => {
   const { file, originalFile, encInfo, metadata } = item;
 
   const [videoError, videoEl] = await to(loadVideoElement(getVideoFileUrl(originalFile)));
   if (videoError) console.warn(videoError);
 
+  const filename = name ?? (file instanceof File ? file.name : 'file');
   const content: IContent = {
     msgtype: MsgType.Video,
-    filename: file.name,
-    body: file.name,
+    filename,
+    body: filename,
     [MATRIX_SPOILER_PROPERTY_NAME]: metadata.markedAsSpoiler,
   };
   if (videoEl) {
@@ -126,12 +130,13 @@ export const getVideoMsgContent = async (
   return content;
 };
 
-export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => {
+export const getAudioMsgContent = (item: TUploadItem, mxc: string, name?: string): IContent => {
   const { file, encInfo } = item;
+  const filename = name ?? (file instanceof File ? file.name : 'file');
   const content: IContent = {
     msgtype: MsgType.Audio,
-    filename: file.name,
-    body: file.name,
+    filename,
+    body: filename,
     info: {
       mimetype: file.type,
       size: file.size,
@@ -148,12 +153,13 @@ export const getAudioMsgContent = (item: TUploadItem, mxc: string): IContent => 
   return content;
 };
 
-export const getFileMsgContent = (item: TUploadItem, mxc: string): IContent => {
+export const getFileMsgContent = (item: TUploadItem, mxc: string, name?: string): IContent => {
   const { file, encInfo } = item;
+  const filename = name ?? (file instanceof File ? file.name : 'file');
   const content: IContent = {
     msgtype: MsgType.File,
-    body: file.name,
-    filename: file.name,
+    body: filename,
+    filename,
     info: {
       mimetype: file.type,
       size: file.size,

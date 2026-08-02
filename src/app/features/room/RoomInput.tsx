@@ -132,6 +132,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
+    const [randomizeFilename] = useSetting(settingsAtom, 'randomizeFilename');
     const direct = useIsDirectRoom();
     const commands = useCommands(mx, room);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -280,16 +281,24 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         const fileItem = selectedFiles.find((f) => f.file === upload.file);
         if (!fileItem) throw new Error('Broken upload');
 
+        let name: string | undefined;
+        if (randomizeFilename && fileItem.file instanceof File) {
+          const ext = fileItem.file.name.includes('.')
+            ? `.${fileItem.file.name.split('.').pop()}`
+            : '';
+          name = `${crypto.randomUUID()}${ext}`;
+        }
+
         if (fileItem.file.type.startsWith('image')) {
-          return getImageMsgContent(mx, fileItem, upload.mxc);
+          return getImageMsgContent(mx, fileItem, upload.mxc, name);
         }
         if (fileItem.file.type.startsWith('video')) {
-          return getVideoMsgContent(mx, fileItem, upload.mxc);
+          return getVideoMsgContent(mx, fileItem, upload.mxc, name);
         }
         if (fileItem.file.type.startsWith('audio')) {
-          return getAudioMsgContent(fileItem, upload.mxc);
+          return getAudioMsgContent(fileItem, upload.mxc, name);
         }
-        return getFileMsgContent(fileItem, upload.mxc);
+        return getFileMsgContent(fileItem, upload.mxc, name);
       });
       handleCancelUpload(uploads);
       const contents = fulfilledPromiseSettledResult(await Promise.allSettled(contentsPromises));
