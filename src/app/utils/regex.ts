@@ -4,7 +4,10 @@
 export const sanitizeForRegex = (unsafeText: string): string =>
   unsafeText.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&').replace(/-/g, '\\x2d');
 
-export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]\\s]+)`;
+// The trailing lookbehind also strips a run of `|`, so a link the sender
+// wrapped in `||spoiler||` markdown does not have the closing delimiter read
+// as part of the url itself.
+export const HTTP_URL_PATTERN = `https?:\\/\\/(?:www\\.)?(?:[^\\s)]*)(?<![.,:;!/?()[\\]|\\s]+)`;
 
 export const URL_REG = new RegExp(HTTP_URL_PATTERN, 'g');
 

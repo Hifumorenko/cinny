@@ -88,8 +88,10 @@ export function RenderMessageContent({
     if (!hiddenGifUrl) return renderBodyProps;
 
     const escapedUrl = sanitizeForRegex(hiddenGifUrl);
+    // Prefers eating a wrapping `||spoiler||` pair along with the link, so a
+    // spoiled link does not leave the delimiters behind as visible clutter.
     const body = renderBodyProps.body
-      .replace(new RegExp(escapedUrl), '')
+      .replace(new RegExp(`\\|{2}${escapedUrl}\\|{2}|${escapedUrl}`), '')
       .replace(/[ \t]{2,}/g, ' ')
       .trim();
     // Also drops the anchor a rich client would have wrapped the link in.
@@ -154,8 +156,9 @@ export function RenderMessageContent({
             spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id)}
           />
         ))}
+        {/* A gif has no id to canonicalize onto, so its own url is matched verbatim. */}
         {embedGifUrls.map((url) => (
-          <GifAttachment key={url} url={url} />
+          <GifAttachment key={url} url={url} spoiler={spoiledUrls.has(url)} />
         ))}
         {otherUrls.length > 0 && (
           <UrlPreviewHolder>
