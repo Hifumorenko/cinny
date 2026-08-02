@@ -55,6 +55,8 @@ export type ImageContentProps = {
   spoilerReason?: string;
   /** A sticker is not a resource of its own worth opening in a new tab. */
   openInNewTab?: boolean;
+  /** A sticker is not meant to be opened at all — no viewer, no new tab. */
+  viewable?: boolean;
   renderViewer: (props: RenderViewerProps) => ReactNode;
   renderImage: (props: RenderImageProps) => ReactNode;
 };
@@ -71,6 +73,7 @@ export const ImageContent = as<'div', ImageContentProps>(
       markedAsSpoiler,
       spoilerReason,
       openInNewTab = true,
+      viewable = true,
       renderViewer,
       renderImage,
       ...props
@@ -119,7 +122,7 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     return (
       <Box className={classNames(css.RelativeBase, className)} {...props} ref={ref}>
-        {srcState.status === AsyncStatus.Success && (
+        {viewable && srcState.status === AsyncStatus.Success && (
           <Overlay open={viewer} backdrop={<OverlayBackdrop />}>
             <OverlayCenter>
               <FocusTrap
@@ -168,43 +171,54 @@ export const ImageContent = as<'div', ImageContentProps>(
             </Button>
           </Box>
         )}
-        {srcState.status === AsyncStatus.Success && (
-          <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
-            {openInNewTab ? (
-              <a
-                className={css.MediaLink}
-                href={srcState.data}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(evt) => {
-                  // Let a middle click, or a modifier held on a plain click,
-                  // open the media in a new tab the way it would on any link.
-                  if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey) return;
-                  evt.preventDefault();
-                  setViewer(true);
-                }}
-              >
-                {renderImage({
-                  alt: body,
-                  title: body,
-                  src: srcState.data,
-                  onLoad: handleLoad,
-                  onError: handleError,
-                })}
-              </a>
-            ) : (
-              <button className={css.MediaButton} type="button" onClick={() => setViewer(true)}>
-                {renderImage({
-                  alt: body,
-                  title: body,
-                  src: srcState.data,
-                  onLoad: handleLoad,
-                  onError: handleError,
-                })}
-              </button>
-            )}
-          </Box>
-        )}
+        {srcState.status === AsyncStatus.Success &&
+          (() => {
+            const image = renderImage({
+              alt: body,
+              title: body,
+              src: srcState.data,
+              onLoad: handleLoad,
+              onError: handleError,
+            });
+
+            if (!viewable) {
+              return (
+                <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
+                  {image}
+                </Box>
+              );
+            }
+
+            if (openInNewTab) {
+              return (
+                <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
+                  <a
+                    className={css.MediaLink}
+                    href={srcState.data}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(evt) => {
+                      // Let a middle click, or a modifier held on a plain
+                      // click, open the media in a new tab like any link.
+                      if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey) return;
+                      evt.preventDefault();
+                      setViewer(true);
+                    }}
+                  >
+                    {image}
+                  </a>
+                </Box>
+              );
+            }
+
+            return (
+              <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
+                <button className={css.MediaButton} type="button" onClick={() => setViewer(true)}>
+                  {image}
+                </button>
+              </Box>
+            );
+          })()}
         {blurred && !error && srcState.status !== AsyncStatus.Error && (
           <Box className={css.AbsoluteContainer} alignItems="Center" justifyContent="Center">
             <TooltipProvider

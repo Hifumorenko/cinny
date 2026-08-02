@@ -334,6 +334,8 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               htmlReactParserOptions={htmlReactParserOptions}
               linkifyOpts={linkifyOpts}
               outlineAttachment
+              room={room}
+              senderId={event.getSender()}
             />
           );
         },
@@ -366,7 +368,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                         <ImageContent
                           {...props}
                           autoPlay={mediaAutoLoad}
-                          openInNewTab={false}
+                          viewable={false}
                           renderImage={(p) => (
                             <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
                           )}
@@ -392,6 +394,8 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       urlPreview={urlPreview}
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
+                      room={room}
+                      senderId={mEvent.getSender()}
                     />
                   );
                 }
@@ -423,7 +427,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                 <ImageContent
                   {...props}
                   autoPlay={mediaAutoLoad}
-                  openInNewTab={false}
+                  viewable={false}
                   renderImage={(p) => <Image {...p} loading="lazy" style={{ cursor: 'default' }} />}
                   renderViewer={(p) => <ImageViewer {...p} />}
                 />

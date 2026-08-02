@@ -1,5 +1,5 @@
 import React from 'react';
-import { MsgType } from 'matrix-js-sdk';
+import { MsgType, Room } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { config } from 'folds';
@@ -40,8 +40,11 @@ import { parseTwitterStatusUrl, testTwitterStatusUrl } from '../plugins/fixupx';
 import { parseYouTubeUrl, testYouTubeUrl } from '../plugins/youtube';
 import { MAX_GIF_EMBEDS, testGifUrl } from '../plugins/gif';
 import { getSpoiledUrls } from '../utils/dom';
-import { trimReplyFromBody } from '../utils/room';
+import { getMemberAvatarMxc, trimReplyFromBody } from '../utils/room';
+import { mxcUrlToHttp } from '../utils/matrix';
 import { sanitizeForRegex, URL_REG } from '../utils/regex';
+import { useMatrixClient } from '../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../hooks/useMediaAuthentication';
 import { IImageContent } from '../../types/matrix/common';
 
 type RenderMessageContentProps = {
@@ -56,6 +59,9 @@ type RenderMessageContentProps = {
   htmlReactParserOptions: HTMLReactParserOptions;
   linkifyOpts: Opts;
   outlineAttachment?: boolean;
+  /** Who sent it, shown in a media viewer opened from this message. */
+  room?: Room;
+  senderId?: string;
 };
 export function RenderMessageContent({
   displayName,
@@ -69,7 +75,15 @@ export function RenderMessageContent({
   htmlReactParserOptions,
   linkifyOpts,
   outlineAttachment,
+  room,
+  senderId,
 }: RenderMessageContentProps) {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const senderAvatarMxc = room && senderId ? getMemberAvatarMxc(room, senderId) : undefined;
+  const senderAvatarUrl = senderAvatarMxc
+    ? mxcUrlToHttp(mx, senderAvatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
+    : undefined;
   // The gif link whose raw text is hidden from the message body, because its
   // own embed already shows it below. Only the first is hidden — any further
   // gif links, up to the embed cap, still show as plain text alongside their
@@ -158,7 +172,15 @@ export function RenderMessageContent({
         ))}
         {/* A gif has no id to canonicalize onto, so its own url is matched verbatim. */}
         {embedGifUrls.map((url) => (
-          <GifAttachment key={url} url={url} spoiler={spoiledUrls.has(url)} />
+          <GifAttachment
+            key={url}
+            url={url}
+            spoiler={spoiledUrls.has(url)}
+            senderId={senderId}
+            senderName={displayName}
+            avatarUrl={senderAvatarUrl}
+            timestamp={ts}
+          />
         ))}
         {otherUrls.length > 0 && (
           <UrlPreviewHolder>
@@ -306,7 +328,15 @@ export function RenderMessageContent({
               {...props}
               autoPlay={mediaAutoLoad}
               renderImage={(p) => <Image {...p} loading="lazy" />}
-              renderViewer={(p) => <ImageViewer {...p} />}
+              renderViewer={(p) => (
+                <ImageViewer
+                  {...p}
+                  senderId={senderId}
+                  senderName={displayName}
+                  avatarUrl={senderAvatarUrl}
+                  timestamp={ts}
+                />
+              )}
             />
           )}
           outlined={outlineAttachment}

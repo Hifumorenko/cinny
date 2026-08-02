@@ -277,6 +277,8 @@ function RoomNotificationsGroupComp({
             htmlReactParserOptions={htmlReactParserOptions}
             linkifyOpts={linkifyOpts}
             outlineAttachment
+            room={room}
+            senderId={event.sender}
           />
         );
       },
@@ -308,7 +310,7 @@ function RoomNotificationsGroupComp({
                       <ImageContent
                         {...props}
                         autoPlay={mediaAutoLoad}
-                        openInNewTab={false}
+                        viewable={false}
                         renderImage={(p) => (
                           <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
                         )}
@@ -338,6 +340,8 @@ function RoomNotificationsGroupComp({
                     urlPreview={urlPreview}
                     htmlReactParserOptions={htmlReactParserOptions}
                     linkifyOpts={linkifyOpts}
+                    room={room}
+                    senderId={mEvent.getSender()}
                   />
                 );
               }
@@ -367,7 +371,7 @@ function RoomNotificationsGroupComp({
               <ImageContent
                 {...props}
                 autoPlay={mediaAutoLoad}
-                openInNewTab={false}
+                viewable={false}
                 renderImage={(p) => <Image {...p} loading="lazy" style={{ cursor: 'default' }} />}
                 renderViewer={(p) => <ImageViewer {...p} />}
               />

@@ -17,10 +17,16 @@ export const useZoom = (step: number, min = 0.1, max = 5) => {
     });
   };
 
+  /** Same clamping as `zoomIn`/`zoomOut`, for a continuous input like a wheel. */
+  const zoomBy = (delta: number) => {
+    setZoom((z) => Math.min(max, Math.max(min, z + delta)));
+  };
+
   return {
     zoom,
     setZoom,
     zoomIn,
     zoomOut,
+    zoomBy,
   };
 };

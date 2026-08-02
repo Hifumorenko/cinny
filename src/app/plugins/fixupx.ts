@@ -10,6 +10,7 @@
 
 const FIXUPX_API_BASE = 'https://api.fxtwitter.com';
 const FIXUPX_BASE = 'https://fixupx.com';
+const X_BASE = 'https://x.com';
 
 const STATUS_HOSTS = new Set([
   'twitter.com',
@@ -58,7 +59,12 @@ export const parseTwitterStatusUrl = (url: string): TwitterStatusLink | undefine
 export const testTwitterStatusUrl = (url: string): boolean =>
   parseTwitterStatusUrl(url) !== undefined;
 
-export const getTwitterProfileUrl = (screenName: string): string => `${FIXUPX_BASE}/${screenName}`;
+/** Plain x.com, unlike `TwitterStatusLink.url` — for links meant to leave the app for the real site. */
+export const getXStatusUrl = (link: Pick<TwitterStatusLink, 'id' | 'handle'>): string =>
+  `${X_BASE}/${link.handle ?? 'i/web'}/status/${link.id}`;
+
+/** Plain x.com — for links meant to leave the app for the real site. */
+export const getXProfileUrl = (screenName: string): string => `${X_BASE}/${screenName}`;
 
 export type FixupxPhoto = {
   type: 'photo';

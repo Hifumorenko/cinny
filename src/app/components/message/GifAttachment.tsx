@@ -12,10 +12,15 @@ export type GifAttachmentProps = {
   outlined?: boolean;
   /** Set when the sender spoiled the link; never inferred from the gif. */
   spoiler?: boolean;
+  /** Who sent it, shown in the viewer opened from this gif. */
+  senderId?: string;
+  senderName?: string;
+  avatarUrl?: string;
+  timestamp?: number;
 };
 
 export const GifAttachment = as<'div', GifAttachmentProps>(
-  ({ url, outlined, spoiler, ...props }, ref) => {
+  ({ url, outlined, spoiler, senderId, senderName, avatarUrl, timestamp, ...props }, ref) => {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
     const [viewer, setViewer] = useState(false);
@@ -117,7 +122,15 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
           alt="GIF"
           viewer={viewer}
           requestClose={() => setViewer(false)}
-          renderViewer={(p) => <ImageViewer {...p} />}
+          renderViewer={(p) => (
+            <ImageViewer
+              {...p}
+              senderId={senderId}
+              senderName={senderName}
+              avatarUrl={avatarUrl}
+              timestamp={timestamp}
+            />
+          )}
         />
       </Attachment>
     );

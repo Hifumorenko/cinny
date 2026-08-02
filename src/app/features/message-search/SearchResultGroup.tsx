@@ -139,6 +139,8 @@ export function SearchResultGroup({
             linkifyOpts={linkifyOpts}
             highlightRegex={highlightRegex}
             outlineAttachment
+            room={room}
+            senderId={event.sender}
           />
         );
       },
@@ -153,7 +155,7 @@ export function SearchResultGroup({
               <ImageContent
                 {...props}
                 autoPlay={mediaAutoLoad}
-                openInNewTab={false}
+                viewable={false}
                 renderImage={(p) => <Image {...p} loading="lazy" style={{ cursor: 'default' }} />}
                 renderViewer={(p) => <ImageViewer {...p} />}
               />

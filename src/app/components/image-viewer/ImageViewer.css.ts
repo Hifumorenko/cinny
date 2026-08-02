@@ -1,33 +1,98 @@
 import { style } from '@vanilla-extract/css';
-import { DefaultReset, color, config, toRem } from 'folds';
+import { DefaultReset, config, toRem } from 'folds';
 
-/** Matches the `size="400"` header the viewer puts above the image. */
-const HEADER_HEIGHT = toRem(56);
+/** Subtle dark pill behind floating controls, legible over any image content. */
+const FLOATING_SURFACE = 'rgba(0, 0, 0, 0.5)';
 
-/** Height follows the image rather than the modal, so no empty band is left. */
+// Fills the modal, which is itself sized to the available screen space (see
+// ModalMedia) — so the floating corner controls below land in the actual
+// screen corners, and there is room to pan a zoomed image across the whole
+// viewer rather than just the image's own, possibly much smaller, box.
 export const ImageViewer = style([
   DefaultReset,
   {
-    height: 'fit-content',
+    position: 'relative',
+    width: '100%',
+    height: '100%',
   },
 ]);
 
-export const ImageViewerHeader = style([
+export const SenderInfo = style([
   DefaultReset,
   {
-    paddingLeft: config.space.S200,
-    paddingRight: config.space.S200,
-    borderBottomWidth: config.borderWidth.B300,
-    flexShrink: 0,
-    gap: config.space.S200,
+    position: 'absolute',
+    top: config.space.S300,
+    left: config.space.S300,
+    zIndex: 2,
+    display: 'flex',
+    maxWidth: `calc(100% - ${toRem(120)})`,
+  },
+]);
+
+/** White with a shadow, so it reads over both bright and dark images alike. */
+export const SenderText = style([
+  DefaultReset,
+  {
+    color: 'white',
+    textShadow: '0 1px 4px rgba(0, 0, 0, 0.8)',
+  },
+]);
+
+/**
+ * Layered on top of SenderText only when the name is actually a link (e.g.
+ * to a tweet author's profile) — a plain name must not hint at being
+ * clickable by underlining on hover.
+ */
+export const SenderTextLink = style([
+  DefaultReset,
+  {
+    textDecoration: 'none',
+
+    ':hover': {
+      textDecoration: 'underline',
+    },
+  },
+]);
+
+/** Dimmer than the name above it, so the two do not blend together. */
+export const SenderTime = style([
+  DefaultReset,
+  {
+    color: 'rgba(255, 255, 255, 0.7)',
+    textShadow: '0 1px 4px rgba(0, 0, 0, 0.8)',
+  },
+]);
+
+export const TopRightControls = style([
+  DefaultReset,
+  {
+    position: 'absolute',
+    top: config.space.S300,
+    right: config.space.S300,
+    zIndex: 2,
+  },
+]);
+
+export const ControlIsland = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    backgroundColor: FLOATING_SURFACE,
+    borderRadius: config.radii.Pill,
+    overflow: 'hidden',
+  },
+]);
+
+export const CloseButton = style([
+  DefaultReset,
+  {
+    backgroundColor: FLOATING_SURFACE,
   },
 ]);
 
 export const ImageViewerContent = style([
   DefaultReset,
   {
-    backgroundColor: color.Background.Container,
-    color: color.Background.OnContainer,
     overflow: 'hidden',
   },
 ]);
@@ -36,14 +101,12 @@ export const ImageViewerImg = style([
   DefaultReset,
   {
     objectFit: 'contain',
-    // The image sizes the viewer now, so it carries the bounds itself: its own
-    // ratio decides the shape, and the viewport decides how large it may get.
-    // The subtraction leaves room for the header sitting above it.
+    // Bounded by the viewer's own content box now (see ImageViewerContent),
+    // not the viewport directly.
     width: 'auto',
     height: 'auto',
-    maxWidth: '90vw',
-    maxHeight: `calc(90vh - ${HEADER_HEIGHT})`,
-    backgroundColor: color.Surface.Container,
+    maxWidth: '100%',
+    maxHeight: '100%',
     transition: 'transform 100ms linear',
   },
 ]);

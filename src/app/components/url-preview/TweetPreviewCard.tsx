@@ -20,7 +20,8 @@ import {
   getMediaFileName,
   getTweet,
   getTweetMedia,
-  getTwitterProfileUrl,
+  getXProfileUrl,
+  getXStatusUrl,
   isPhoto,
   parseTwitterStatusUrl,
 } from '../../plugins/fixupx';
@@ -74,7 +75,7 @@ function TweetAuthorLine({ author, size }: { author: FixupxTweet['author']; size
   return (
     <a
       className={css.TweetAuthor}
-      href={getTwitterProfileUrl(author.screen_name)}
+      href={getXProfileUrl(author.screen_name)}
       target="_blank"
       rel="noreferrer"
     >
@@ -150,9 +151,14 @@ type TweetMediaProps = {
   description: string;
   /** Set when the sender spoiled the link; never inferred from the status. */
   spoiler?: boolean;
+  /** Shown in the viewer opened from this media — the tweet's, not the room message's. */
+  author: FixupxTweet['author'];
+  timestamp: number;
+  /** What "Open in New Tab" opens from the viewer — the tweet, not the bare media file. */
+  postUrl: string;
 };
 
-function TweetMedia({ media, description, spoiler }: TweetMediaProps) {
+function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }: TweetMediaProps) {
   const [blurred, setBlurred] = useState(spoiler ?? false);
   const [viewing, setViewing] = useState<ViewingMedia>();
   // Gifs whose transcode could not be loaded, which fall back to the mp4.
@@ -266,6 +272,12 @@ function TweetMedia({ media, description, spoiler }: TweetMediaProps) {
               {...p}
               downloadSrc={viewing.downloadSrc}
               downloadName={viewing.downloadName}
+              senderId={author.screen_name}
+              senderName={`${author.name} (@${author.screen_name})`}
+              senderUrl={getXProfileUrl(author.screen_name)}
+              avatarUrl={author.avatar_url ?? undefined}
+              timestamp={timestamp}
+              openUrl={postUrl}
             />
           )}
         />
@@ -368,7 +380,14 @@ export const TweetPreviewCard = as<'div', { url: string; spoiler?: boolean }>(
           )}
 
           {renderPoll()}
-          <TweetMedia media={media} description={tweet.text} spoiler={spoiler} />
+          <TweetMedia
+            media={media}
+            description={tweet.text}
+            spoiler={spoiler}
+            author={tweet.author}
+            timestamp={ts}
+            postUrl={getXStatusUrl(link)}
+          />
           {tweet.quote && <TweetQuoteCard quote={tweet.quote} />}
 
           <Box className={css.TweetFooter} alignItems="Center">

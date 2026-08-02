@@ -6,20 +6,29 @@ export const ModalWide = style({
 });
 
 /**
- * Lets a modal shrink to fit whatever it holds, so the image viewer takes the
- * media's own proportions rather than a fixed landscape box. The doubled
- * selector is there to outrank the size cap the Modal component sets on itself.
+ * Fixed to the full screen, rather than shrinking to fit the media — so the
+ * image viewer's corner controls land in the actual screen corners, and a
+ * zoomed image has the whole viewport to pan across, not just its own box.
+ * The doubled selector is there to outrank the Modal component's own
+ * styling: its `size` variant caps `max-width`/`max-height` to a fixed
+ * (non-viewport-relative) pixel value regardless of screen size, which must
+ * be lifted or `width`/`height` below get silently clamped down to it; its
+ * `variant` also draws a real border and a card background/shadow, which are
+ * stripped here too — the image viewer floats directly on the darkened
+ * backdrop, borderless.
  */
 export const ModalMedia = style({
   selectors: {
     '&&': {
-      width: 'fit-content',
-      height: 'fit-content',
-      // A floor for the header's controls, so a narrow image cannot crush them.
-      // Only images displayed narrower than this get a box wider than they are.
-      minWidth: `min(20rem, 90vw)`,
-      maxWidth: '90vw',
-      maxHeight: '90vh',
+      width: '100vw',
+      height: '100vh',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      backgroundColor: 'transparent',
+      border: 'none',
+      boxShadow: 'none',
+      borderRadius: 0,
+      overflow: 'visible',
     },
   },
 });

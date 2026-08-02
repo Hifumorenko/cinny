@@ -1215,6 +1215,8 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                 htmlReactParserOptions={htmlReactParserOptions}
                 linkifyOpts={linkifyOpts}
                 outlineAttachment={messageLayout === MessageLayout.Bubble}
+                room={room}
+                senderId={senderId}
               />
             )}
           </Message>
@@ -1294,7 +1296,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                         <ImageContent
                           {...props}
                           autoPlay={mediaAutoLoad}
-                          openInNewTab={false}
+                          viewable={false}
                           renderImage={(p) => (
                             <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
                           )}
@@ -1324,6 +1326,8 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                       htmlReactParserOptions={htmlReactParserOptions}
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
+                      room={room}
+                      senderId={senderId}
                     />
                   );
                 }
@@ -1398,7 +1402,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                   <ImageContent
                     {...props}
                     autoPlay={mediaAutoLoad}
-                    openInNewTab={false}
+                    viewable={false}
                     renderImage={(p) => (
                       <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
                     )}
