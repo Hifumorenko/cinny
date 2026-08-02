@@ -1,3 +1,5 @@
+import { URL_REG } from './regex';
+
 export const targetFromEvent = (evt: Event, selector: string): Element | undefined => {
   const targets = evt.composedPath() as Element[];
   return targets.find((target) => target.matches?.(selector));
@@ -209,6 +211,30 @@ export const setFavicon = (url: string): void => {
   const favicon = document.querySelector('#favicon');
   if (!favicon) return;
   favicon.setAttribute('href', url);
+};
+
+/**
+ * Urls the sender wrapped in a spoiler, so anything rendered from them — a link
+ * preview, for one — can stay covered along with the text.
+ */
+export const getSpoiledUrls = (formattedBody?: string): Set<string> => {
+  const urls = new Set<string>();
+  if (!formattedBody?.includes('data-mx-spoiler')) return urls;
+
+  try {
+    const doc = new DOMParser().parseFromString(formattedBody, 'text/html');
+    doc.querySelectorAll('[data-mx-spoiler]').forEach((spoiler) => {
+      spoiler.querySelectorAll('a[href]').forEach((anchor) => {
+        const href = anchor.getAttribute('href');
+        if (href) urls.add(href);
+      });
+      spoiler.textContent?.match(URL_REG)?.forEach((url) => urls.add(url));
+    });
+  } catch {
+    // Malformed markup, nothing to treat as spoiled.
+  }
+
+  return urls;
 };
 
 export const tryDecodeURIComponent = (encodedURIComponent: string): string => {

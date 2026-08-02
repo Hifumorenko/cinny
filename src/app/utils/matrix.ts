@@ -298,7 +298,8 @@ export const mxcUrlToHttp = (
 
 export const downloadMedia = async (src: string): Promise<Blob> => {
   // this request is authenticated by service worker
-  const res = await fetch(src, { method: 'GET' });
+  // no referrer because some third party media hosts reject requests carrying one
+  const res = await fetch(src, { method: 'GET', referrerPolicy: 'no-referrer' });
   const blob = await res.blob();
   return blob;
 };

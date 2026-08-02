@@ -122,6 +122,22 @@ function validMediaRequest(url: string, baseUrl: string): boolean {
   });
 }
 
+/**
+ * X's video host rejects any request carrying a Referer that is not one of its
+ * own domains, which is exactly what a media element sends. Re-issue those
+ * requests without one, forwarding the original headers so that ranged
+ * requests — and therefore seeking — keep working.
+ */
+const REFERER_FREE_HOSTS = ['video.twimg.com'];
+
+function refererFreeHost(url: string): boolean {
+  try {
+    return REFERER_FREE_HOSTS.includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function fetchConfig(token: string): RequestInit {
   return {
     headers: {
@@ -133,6 +149,18 @@ function fetchConfig(token: string): RequestInit {
 
 self.addEventListener('fetch', (event: FetchEvent) => {
   const { url, method } = event.request;
+
+  if (method === 'GET' && refererFreeHost(url)) {
+    event.respondWith(
+      fetch(url, {
+        headers: event.request.headers,
+        referrerPolicy: 'no-referrer',
+        credentials: 'omit',
+        cache: 'default',
+      })
+    );
+    return;
+  }
 
   if (method !== 'GET' || !mediaPath(url)) return;
 

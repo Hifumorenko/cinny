@@ -11,17 +11,21 @@ import { downloadMedia } from '../../utils/matrix';
 export type ImageViewerProps = {
   alt: string;
   src: string;
+  /** Saved instead of `src`, for hosts that will not serve a readable copy. */
+  downloadSrc?: string;
+  /** Saved under this name instead of the alt text. */
+  downloadName?: string;
   requestClose: () => void;
 };
 
 export const ImageViewer = as<'div', ImageViewerProps>(
-  ({ className, alt, src, requestClose, ...props }, ref) => {
+  ({ className, alt, src, downloadSrc, downloadName, requestClose, ...props }, ref) => {
     const { zoom, zoomIn, zoomOut, setZoom } = useZoom(0.2);
     const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
 
     const handleDownload = async () => {
-      const fileContent = await downloadMedia(src);
-      FileSaver.saveAs(fileContent, alt);
+      const fileContent = await downloadMedia(downloadSrc ?? src);
+      FileSaver.saveAs(fileContent, downloadName ?? alt);
     };
 
     return (
