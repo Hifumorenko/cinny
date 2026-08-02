@@ -269,7 +269,7 @@ export function RoomNavItem({
   const roomName = useRoomName(room);
   const dmUserId = guessDmRoomUserId(room, mx.getSafeUserId());
   const dmUserPresence = useUserPresence(dmUserId);
-  const showPresence = direct && dmUserPresence && dmUserPresence.lastActiveTs !== 0;
+  const showPresence = direct && dmUserPresence && dmUserPresence.known;
 
   const handleContextMenu: MouseEventHandler<HTMLElement> = (evt) => {
     evt.preventDefault();

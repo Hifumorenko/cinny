@@ -59,7 +59,7 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
   const avatarUrl = (avatarMxc && mxcUrlToHttp(mx, avatarMxc, useAuthentication)) ?? undefined;
 
   const presence = useUserPresence(userId);
-  const showPresence = presence && presence.lastActiveTs !== 0;
+  const showPresence = presence && presence.known;
 
   const handleMessage = () => {
     closeUserRoomProfile();

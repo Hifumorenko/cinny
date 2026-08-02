@@ -13,6 +13,16 @@ export type UserPresence = {
   status?: string;
   active: boolean;
   lastActiveTs?: number;
+  /**
+   * Whether the server has actually reported this user's presence at least
+   * once. `presence`/`lastActiveTs` still hold usable (default) values even
+   * when this is false, but they're just the SDK's untouched defaults, not
+   * real data — e.g. every `User` starts as `presence: 'offline'` whether or
+   * not that's true. A user who's been offline for the entirety of this
+   * client's session never triggers a presence event, so this is the only
+   * reliable way to tell "known offline" apart from "unknown".
+   */
+  known: boolean;
 };
 
 const getUserPresence = (user: User): UserPresence => ({
@@ -20,6 +30,7 @@ const getUserPresence = (user: User): UserPresence => ({
   status: user.presenceStatusMsg,
   active: user.currentlyActive,
   lastActiveTs: user.getLastActiveTs(),
+  known: !!user.events.presence,
 });
 
 export const useUserPresence = (userId: string): UserPresence | undefined => {
@@ -43,6 +54,35 @@ export const useUserPresence = (userId: string): UserPresence | undefined => {
       user?.removeListener(UserEvent.LastPresenceTs, updatePresence);
     };
   }, [user]);
+
+  // `/sync` only pushes a presence update when a user's state *changes*
+  // while we're connected — someone who's simply been offline the whole
+  // session never triggers one, so `known` above would stay false forever.
+  // Ask the server directly at least once so we get a real initial value
+  // instead of just waiting on a push that may never come.
+  useEffect(() => {
+    if (!userId || user?.events.presence) return undefined;
+    let cancelled = false;
+    mx.getPresence(userId)
+      .then((status) => {
+        if (cancelled) return;
+        setPresence({
+          presence: status.presence as Presence,
+          status: status.status_msg,
+          active: status.currently_active ?? false,
+          lastActiveTs: status.last_active_ago ? Date.now() - status.last_active_ago : undefined,
+          known: true,
+        });
+      })
+      .catch(() => {
+        // Presence may be disabled on the homeserver, or federation to a
+        // remote user's server may be unreachable — either way, there's no
+        // real data to show, so leave `known` false rather than guess.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mx, userId, user]);
 
   return presence;
 };

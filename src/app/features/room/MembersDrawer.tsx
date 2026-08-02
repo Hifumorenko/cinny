@@ -128,7 +128,7 @@ function MemberItem({
     ? mx.mxcUrlToHttp(avatarMxcUrl, 100, 100, 'crop', undefined, false, useAuthentication)
     : undefined;
   const userPresence = useUserPresence(member.userId);
-  const showPresence = userPresence && userPresence.lastActiveTs !== 0;
+  const showPresence = userPresence && userPresence.known;
 
   return (
     <MenuItem
