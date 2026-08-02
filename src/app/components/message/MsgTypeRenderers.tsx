@@ -40,11 +40,13 @@ export function MBadEncrypted() {
 
 type RedactedContentProps = {
   reason?: string;
+  /** How many consecutive deleted messages this one line stands in for, when more than one collapsed together. */
+  count?: number;
 };
-export function RedactedContent({ reason }: RedactedContentProps) {
+export function RedactedContent({ reason, count }: RedactedContentProps) {
   return (
     <Text>
-      <MessageDeletedContent reason={reason} />
+      <MessageDeletedContent reason={reason} count={count} />
     </Text>
   );
 }

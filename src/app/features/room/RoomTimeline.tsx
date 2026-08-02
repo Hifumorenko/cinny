@@ -103,7 +103,12 @@ import { inSameDay, minuteDifference, timeDayMonthYear, today, yesterday } from 
 import { createMentionElement, isEmptyEditor, moveCursor } from '../../components/editor';
 import { roomIdToReplyDraftAtomFamily } from '../../state/room/roomInputDrafts';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
-import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
+import {
+  GetContentCallback,
+  IMemberContent,
+  MessageEvent,
+  StateEvent,
+} from '../../../types/matrix/room';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
@@ -208,6 +213,54 @@ export const getTimelineRelativeIndex = (absoluteIndex: number, timelineBaseInde
 
 export const getTimelineEvent = (timeline: EventTimeline, index: number): MatrixEvent | undefined =>
   timeline.getEvents()[index];
+
+/**
+ * Message types that show a "message deleted" placeholder in place of their
+ * real content when redacted (see the `mEvent.isRedacted()` branches in
+ * `renderMatrixEvent` below) — the only ones worth grouping as "redacted",
+ * since anything else either isn't rendered at all or isn't redactable in a
+ * way that produces this placeholder.
+ */
+const REDACTABLE_PLACEHOLDER_TYPES: string[] = [
+  MessageEvent.RoomMessage,
+  MessageEvent.RoomMessageEncrypted,
+  MessageEvent.Sticker,
+];
+
+/**
+ * A grouping key for events that should collapse into a single "(xN)" line
+ * when several of the same kind land back to back — e.g. a burst of deleted
+ * messages, or someone changing their avatar a few times in a row. Returns
+ * `undefined` for anything that shouldn't be grouped, including events that
+ * `eventRenderer` wouldn't actually render on its own (a redacted event when
+ * `showHiddenEvents` is off; an avatar/name change when `hideNickAvatarEvents`
+ * is on) — those must not be treated as run members, or the run's real
+ * (visible) length would be miscounted.
+ */
+const getCollapsibleGroupKey = (
+  mEvent: MatrixEvent,
+  hideNickAvatarEvents: boolean,
+  showHiddenEvents: boolean
+): string | undefined => {
+  if (mEvent.isRedacted()) {
+    if (!showHiddenEvents || !REDACTABLE_PLACEHOLDER_TYPES.includes(mEvent.getType())) {
+      return undefined;
+    }
+    return `redacted:${mEvent.getSender() ?? ''}`;
+  }
+
+  if (mEvent.getType() === StateEvent.RoomMember && !isMembershipChanged(mEvent)) {
+    if (hideNickAvatarEvents) return undefined;
+    const userId = mEvent.getStateKey();
+    if (!userId) return undefined;
+    const content = mEvent.getContent<IMemberContent>();
+    const prevContent = mEvent.getPrevContent() as IMemberContent;
+    if (content.avatar_url !== prevContent.avatar_url) return `avatar:${userId}`;
+    if (content.displayname !== prevContent.displayname) return `displayname:${userId}`;
+  }
+
+  return undefined;
+};
 
 export const getEventIdAbsoluteIndex = (
   timelines: EventTimeline[],
@@ -595,6 +648,56 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       ),
       onEnd: handleTimelinePagination,
     });
+
+  // Runs of consecutive same-kind collapsible events (see
+  // `getCollapsibleGroupKey`) render as a single "(xN)" line rather than N
+  // separate ones. `suppressedItems` holds every item but the last in each
+  // run (the ones `eventRenderer` should skip); `groupCounts` maps the last
+  // item in a run of 2+ to that run's length, for the one item that does
+  // render to show a count. A run of exactly 1 needs no entry — it renders
+  // normally, with no suffix.
+  const { suppressedItems, groupCounts } = useMemo(() => {
+    const suppressed = new Set<number>();
+    const counts = new Map<number, number>();
+
+    let runKey: string | undefined;
+    let runItems: number[] = [];
+
+    const flushRun = () => {
+      if (runKey && runItems.length >= 2) {
+        const lastItem = runItems[runItems.length - 1];
+        counts.set(lastItem, runItems.length);
+        runItems.slice(0, -1).forEach((i) => suppressed.add(i));
+      }
+      runKey = undefined;
+      runItems = [];
+    };
+
+    getItems().forEach((item) => {
+      const [eventTimeline, baseIndex] = getTimelineAndBaseIndex(timeline.linkedTimelines, item);
+      const mEvent =
+        eventTimeline && getTimelineEvent(eventTimeline, getTimelineRelativeIndex(item, baseIndex));
+      const eventSender = mEvent?.getSender();
+      if (!mEvent || (eventSender && ignoredUsersSet.has(eventSender))) {
+        flushRun();
+        return;
+      }
+
+      const key = getCollapsibleGroupKey(mEvent, hideNickAvatarEvents, showHiddenEvents);
+      if (key && key === runKey) {
+        runItems.push(item);
+        return;
+      }
+      flushRun();
+      if (key) {
+        runKey = key;
+        runItems = [item];
+      }
+    });
+    flushRun();
+
+    return { suppressedItems: suppressed, groupCounts: counts };
+  }, [getItems, timeline.linkedTimelines, ignoredUsersSet, hideNickAvatarEvents, showHiddenEvents]);
 
   const loadEventTimeline = useEventTimelineLoader(
     mx,
@@ -1228,7 +1331,10 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             dateFormatString={dateFormatString}
           >
             {mEvent.isRedacted() ? (
-              <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+              <RedactedContent
+                reason={mEvent.getUnsigned().redacted_because?.content.reason}
+                count={groupCounts.get(item)}
+              />
             ) : (
               <RenderMessageContent
                 displayName={senderDisplayName}
@@ -1313,7 +1419,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
           >
             <EncryptedContent mEvent={mEvent}>
               {() => {
-                if (mEvent.isRedacted()) return <RedactedContent />;
+                if (mEvent.isRedacted()) return <RedactedContent count={groupCounts.get(item)} />;
                 if (mEvent.getType() === MessageEvent.Sticker)
                   return (
                     <MSticker
@@ -1420,7 +1526,10 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
             dateFormatString={dateFormatString}
           >
             {mEvent.isRedacted() ? (
-              <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+              <RedactedContent
+                reason={mEvent.getUnsigned().redacted_because?.content.reason}
+                count={groupCounts.get(item)}
+              />
             ) : (
               <MSticker
                 content={mEvent.getContent()}
@@ -1447,6 +1556,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
 
         const highlighted = focusItem?.index === item && focusItem.highlight;
         const parsed = parseMemberEvent(mEvent);
+        const groupCount = groupCounts.get(item);
 
         const timeJSX = (
           <Time
@@ -1478,6 +1588,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                 <Box grow="Yes" direction="Column">
                   <Text size="T300" priority="300">
                     {parsed.body}
+                    {groupCount ? ` (x${groupCount})` : null}
                   </Text>
                 </Box>
               }
@@ -1782,6 +1893,12 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       return null;
     }
     if (mEvent.isRedacted() && !showHiddenEvents) {
+      return null;
+    }
+    if (suppressedItems.has(item)) {
+      // A non-final member of a collapsed run (see `groupCounts` above) —
+      // the run's last item renders a single "(xN)" line standing in for
+      // all of them, so a divider would never end up here either.
       return null;
     }
 
