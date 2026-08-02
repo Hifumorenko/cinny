@@ -1,4 +1,4 @@
-This fork is for personal use only. Yes, it is vibe coded. It will NOT be merged into Cinny.
+This fork is for personal use only. Yes, it is vibe coded. It will NOT be merged into Cinny. The list of new features can be found in [features.md](./features.md).
 ---
 # Cinny
 <p>
