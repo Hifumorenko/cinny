@@ -202,13 +202,24 @@ function TweetMedia({ media, description, spoiler }: TweetMediaProps) {
                 )}
               >
                 {src ? (
-                  <button
-                    className={css.TweetMediaButton}
-                    type="button"
+                  <a
+                    className={contentCss.MediaLink}
+                    href={src}
+                    target="_blank"
+                    rel="noreferrer"
                     title={photo ? item.altText : undefined}
-                    // A blurred frame must not be openable in the viewer.
-                    disabled={blurred}
-                    onClick={() => view(item)}
+                    onClick={(evt) => {
+                      // A blurred frame must not be openable in the viewer.
+                      if (blurred) {
+                        evt.preventDefault();
+                        return;
+                      }
+                      // Let a middle click, or a modifier held on a plain
+                      // click, open the media in a new tab like any link.
+                      if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey) return;
+                      evt.preventDefault();
+                      view(item);
+                    }}
                   >
                     <img
                       className={css.TweetMediaImg}
@@ -220,7 +231,7 @@ function TweetMedia({ media, description, spoiler }: TweetMediaProps) {
                         photo ? undefined : () => setGifFailed((failed) => [...failed, item.url])
                       }
                     />
-                  </button>
+                  </a>
                 ) : (
                   !photo && <TweetVideo item={item} />
                 )}

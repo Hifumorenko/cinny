@@ -54,13 +54,22 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
             </Box>
           ) : (
             <>
-              {/* A button, not the image itself: the frame opens a viewer, so it needs to be a real interactive element. */}
-              <button
-                className={css.GifButton}
-                type="button"
-                // A blurred frame must not be openable in the viewer.
-                disabled={blurred}
-                onClick={() => setViewer(true)}
+              {/* A real link, not the image itself: middle/ctrl/cmd-click opens the gif in a new tab, a plain click opens the in-app viewer. */}
+              <a
+                className={contentCss.MediaLink}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(evt) => {
+                  // A blurred frame must not be openable in the viewer.
+                  if (blurred) {
+                    evt.preventDefault();
+                    return;
+                  }
+                  if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey) return;
+                  evt.preventDefault();
+                  setViewer(true);
+                }}
               >
                 <img
                   className={classNames(css.GifImage, blurred && contentCss.Blur)}
@@ -73,7 +82,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
                     setError(true);
                   }}
                 />
-              </button>
+              </a>
               {blurred && (
                 <Box
                   className={contentCss.AbsoluteContainer}

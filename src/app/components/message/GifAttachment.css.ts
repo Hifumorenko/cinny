@@ -25,18 +25,6 @@ export const GifBox = style([
   },
 ]);
 
-export const GifButton = style([
-  DefaultReset,
-  {
-    display: 'block',
-    width: '100%',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-  },
-]);
-
 export const GifImage = style([
   DefaultReset,
   {

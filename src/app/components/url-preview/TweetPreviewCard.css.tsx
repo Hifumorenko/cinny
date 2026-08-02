@@ -152,19 +152,6 @@ export const TweetMediaItem = style([
   },
 ]);
 
-export const TweetMediaButton = style([
-  DefaultReset,
-  {
-    display: 'block',
-    width: '100%',
-    height: '100%',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-  },
-]);
-
 export const TweetMediaImg = style([
   DefaultReset,
   {

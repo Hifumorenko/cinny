@@ -308,6 +308,7 @@ function RoomNotificationsGroupComp({
                       <ImageContent
                         {...props}
                         autoPlay={mediaAutoLoad}
+                        openInNewTab={false}
                         renderImage={(p) => (
                           <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
                         )}
@@ -366,6 +367,7 @@ function RoomNotificationsGroupComp({
               <ImageContent
                 {...props}
                 autoPlay={mediaAutoLoad}
+                openInNewTab={false}
                 renderImage={(p) => <Image {...p} loading="lazy" style={{ cursor: 'default' }} />}
                 renderViewer={(p) => <ImageViewer {...p} />}
               />
