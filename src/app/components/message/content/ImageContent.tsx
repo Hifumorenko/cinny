@@ -1,4 +1,4 @@
-import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -39,6 +39,8 @@ type RenderViewerProps = {
   requestClose: () => void;
   onPrev?: () => void;
   onNext?: () => void;
+  openUrl?: string;
+  canOpenExternally?: boolean;
 };
 type RenderImageProps = {
   alt: string;
@@ -87,6 +89,35 @@ export const ImageContent = as<'div', ImageContentProps>(
     const useAuthentication = useMediaAuthentication();
     const blurHash = validBlurHash(info?.[MATRIX_BLUR_HASH_PROPERTY_NAME]);
 
+    // The plain http(s) location of the media — used to actually fetch it
+    // (and, for encrypted media, decrypt it into the blob `srcState.data`
+    // ends up holding for in-app display). This is unconditional: fetching
+    // needs it regardless of encryption or auth, since this app's own
+    // already-logged-in code is what attaches the auth header / decrypts.
+    const httpUrl = useMemo(
+      // matrix-js-sdk returns `""` (not `null`) when it can't build a URL —
+      // `||` catches that too, where `??` would let an empty string through
+      // as if it were a valid href.
+      () => mxcUrlToHttp(mx, url, useAuthentication) || undefined,
+      [mx, url, useAuthentication]
+    );
+
+    // By contrast, this is the URL (if any) that's safe to hand to something
+    // *outside* this app — a middle-click, "open in new tab", or a Tauri
+    // build routing the link through the system shell. `httpUrl` itself
+    // isn't always fit for that:
+    //  - Authenticated media (MSC3916) 401s on a bare request; only this
+    //    app's own already-logged-in fetch can attach the token.
+    //  - Encrypted media's raw URL is undecrypted ciphertext, not a viewable
+    //    image, regardless of who requests it.
+    //  - `srcState.data` (the decrypted result) is a `blob:` URL in that
+    //    case — fine in this webview, but the OS has no handler for `blob:`
+    //    externally and falls back to an "open with" prompt instead.
+    // `undefined` here means "there is no safe external link", which
+    // `ImageViewer`/the thumbnail link below use to hide that action rather
+    // than fall back to the in-app-only blob.
+    const externalUrl = useAuthentication || encInfo ? undefined : httpUrl;
+
     const [load, setLoad] = useState(false);
     const [error, setError] = useState(false);
     const [viewer, setViewer] = useState(false);
@@ -94,16 +125,15 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
-        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-        if (!mediaUrl) throw new Error('Invalid media URL');
+        if (!httpUrl) throw new Error('Invalid media URL');
         if (encInfo) {
-          const fileContent = await downloadEncryptedMedia(mediaUrl, (encBuf) =>
+          const fileContent = await downloadEncryptedMedia(httpUrl, (encBuf) =>
             decryptFile(encBuf, mimeType ?? FALLBACK_MIMETYPE, encInfo)
           );
           return URL.createObjectURL(fileContent);
         }
-        return mediaUrl;
-      }, [mx, url, useAuthentication, mimeType, encInfo])
+        return httpUrl;
+      }, [httpUrl, mimeType, encInfo])
     );
 
     const handleLoad = () => {
@@ -159,6 +189,8 @@ export const ImageContent = as<'div', ImageContentProps>(
                     requestClose: () => setViewer(false),
                     onPrev,
                     onNext,
+                    openUrl: externalUrl,
+                    canOpenExternally: !!externalUrl,
                   })}
                 </Modal>
               </FocusTrap>
@@ -206,12 +238,12 @@ export const ImageContent = as<'div', ImageContentProps>(
               );
             }
 
-            if (openInNewTab) {
+            if (openInNewTab && externalUrl) {
               return (
                 <Box className={classNames(css.AbsoluteContainer, blurred && css.Blur)}>
                   <a
                     className={css.MediaLink}
-                    href={srcState.data}
+                    href={externalUrl}
                     target="_blank"
                     rel="noreferrer"
                     data-media-nav={mediaKey}

@@ -31,6 +31,15 @@ export type ImageViewerProps = {
   timestamp?: number;
   /** What "Open in New Tab" opens, when it should not be `downloadSrc`/`src` — e.g. the tweet a photo came from, rather than the bare image file. */
   openUrl?: string;
+  /**
+   * Hides "Open in New Tab" outright rather than falling back to
+   * `downloadSrc`/`src` — for callers where neither is a link any browser
+   * outside this app could actually resolve (e.g. `src` is a `blob:` URL
+   * for decrypted media, or the media requires an auth header a bare
+   * navigation can't attach). Default `true`: shown, falling back through
+   * `openUrl ?? downloadSrc ?? src` as before.
+   */
+  canOpenExternally?: boolean;
   /** Step to the previous/next media in the room timeline. Omitted entirely when there is nothing to step through. */
   onPrev?: () => void;
   onNext?: () => void;
@@ -67,6 +76,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       avatarUrl,
       timestamp,
       openUrl,
+      canOpenExternally = true,
       onPrev,
       onNext,
       ...props
@@ -294,19 +304,21 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             >
               <Icon style={{ color: 'white' }} size="100" src={Icons.Download} />
             </IconButton>
-            <IconButton
-              as="a"
-              href={openUrl ?? downloadSrc ?? src}
-              target="_blank"
-              rel="noreferrer"
-              variant="SurfaceVariant"
-              fill="None"
-              size="400"
-              radii="Pill"
-              aria-label="Open in New Tab"
-            >
-              <Icon style={{ color: 'white' }} size="100" src={Icons.External} />
-            </IconButton>
+            {canOpenExternally && (
+              <IconButton
+                as="a"
+                href={openUrl ?? downloadSrc ?? src}
+                target="_blank"
+                rel="noreferrer"
+                variant="SurfaceVariant"
+                fill="None"
+                size="400"
+                radii="Pill"
+                aria-label="Open in New Tab"
+              >
+                <Icon style={{ color: 'white' }} size="100" src={Icons.External} />
+              </IconButton>
+            )}
           </Box>
           <IconButton
             className={css.CloseButton}
