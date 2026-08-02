@@ -6,8 +6,9 @@ export const TweetPreview = style([
   DefaultReset,
   {
     marginTop: config.space.S200,
-    // Fixed rather than max width, so every embed is the same size.
-    width: toRem(520),
+    // Fixed rather than max width, so every embed is the same size. Matches the
+    // width of a sent image attachment, so the two line up in the timeline.
+    width: toRem(400),
     maxWidth: '100%',
     display: 'flex',
     backgroundColor: color.SurfaceVariant.Container,
@@ -160,11 +161,9 @@ export const TweetMediaButton = style([
     padding: 0,
     border: 'none',
     background: 'none',
-    cursor: 'pointer',
-
-    ':hover': {
-      filter: 'brightness(0.8)',
-    },
+    // Deliberately not a pointer: the frame opens a viewer but should not
+    // advertise itself as a link.
+    cursor: 'default',
   },
 ]);
 

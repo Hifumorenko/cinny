@@ -232,6 +232,20 @@ type RoomTimelineProps = {
 
 const PAGINATION_LIMIT = 80;
 
+/**
+ * How close to the bottom still counts as being at the bottom when content
+ * grows late. Matches the margin the bottom anchor is observed with, so both
+ * agree on where "at bottom" ends.
+ */
+const STICK_TO_BOTTOM_THRESHOLD = 100;
+
+/**
+ * How long after the reader's last scroll input their scrolling is still
+ * considered to be underway. Covers the momentum a wheel or trackpad keeps
+ * producing scroll events with after the input itself has stopped.
+ */
+const READER_SCROLL_WINDOW = 700;
+
 type Timeline = {
   linkedTimelines: EventTimeline[];
   range: ItemRange;
@@ -498,6 +512,15 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const timelineContentRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether late growing content should keep the view pinned to the bottom.
+   * The `atBottom` flag cannot answer that: it is debounced by a second on the
+   * way to false, so somebody who has just scrolled up into history still reads
+   * as being at the bottom and would get yanked back down.
+   */
+  // Opening a permalink to an event means landing there, not at the bottom.
+  const stickToBottomRef = useRef(!eventId);
   const scrollToBottomRef = useRef({
     count: 0,
     smooth: true,
@@ -704,6 +727,92 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
       };
     }, [getScrollElement, roomInputRef]),
     useCallback(() => roomInputRef.current, [roomInputRef])
+  );
+
+  // Decide whether the reader wants to stay at the bottom.
+  useEffect(() => {
+    const scrollElement = getScrollElement();
+    if (!scrollElement) return undefined;
+
+    const distanceFromBottom = () =>
+      scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.offsetHeight;
+
+    // A scroll event on its own says nothing about intent: re-renders, range
+    // changes and clamped scroll positions all fire one from far up the
+    // timeline without anybody having touched anything. So a scroll only counts
+    // as the reader leaving the bottom while they are actually working the
+    // scroller — which has to be judged per event, not once a gesture ends: a
+    // wheel or trackpad scroll fires continuously, and anything deferred to the
+    // end of it leaves the view pinned for the whole gesture.
+    let lastInputAt = 0;
+    let pointerDown = false;
+
+    const readerIsScrolling = () => pointerDown || Date.now() - lastInputAt < READER_SCROLL_WINDOW;
+
+    const handleScroll = () => {
+      if (distanceFromBottom() <= STICK_TO_BOTTOM_THRESHOLD) {
+        // Arriving at the bottom, by whatever means, resumes sticking.
+        stickToBottomRef.current = true;
+        return;
+      }
+      if (readerIsScrolling()) {
+        stickToBottomRef.current = false;
+      }
+    };
+
+    const handleInput = () => {
+      lastInputAt = Date.now();
+    };
+    // Dragging the scrollbar can outlast the window between its own events.
+    const handlePointerDown = () => {
+      pointerDown = true;
+      lastInputAt = Date.now();
+    };
+    const handlePointerUp = () => {
+      pointerDown = false;
+      lastInputAt = Date.now();
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+    scrollElement.addEventListener('wheel', handleInput, { passive: true });
+    scrollElement.addEventListener('touchmove', handleInput, { passive: true });
+    scrollElement.addEventListener('keydown', handleInput);
+    scrollElement.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('mouseup', handlePointerUp);
+
+    return () => {
+      scrollElement.removeEventListener('scroll', handleScroll);
+      scrollElement.removeEventListener('wheel', handleInput);
+      scrollElement.removeEventListener('touchmove', handleInput);
+      scrollElement.removeEventListener('keydown', handleInput);
+      scrollElement.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('mouseup', handlePointerUp);
+    };
+  }, [getScrollElement]);
+
+  // Stay at bottom when the timeline itself grows after being laid out, which
+  // happens whenever content finishes loading late — a link preview resolving,
+  // or an image without known dimensions decoding — under a message that was
+  // already scrolled to. Someone reading history is left where they are.
+  useResizeObserver(
+    useMemo(
+      () => (entries) => {
+        // The first callback is deliberately not skipped. Content can finish
+        // loading before the observer delivers anything — a cached embed
+        // resolves in a microtask — in which case the already grown size
+        // arrives as the initial observation and is the only one there is.
+        if (!timelineContentRef.current) return;
+        const contentEntry = getResizeObserverEntry(timelineContentRef.current, entries);
+        const scrollElement = getScrollElement();
+        if (!contentEntry || !scrollElement) return;
+
+        if (stickToBottomRef.current) {
+          scrollToBottom(scrollElement);
+        }
+      },
+      [getScrollElement]
+    ),
+    useCallback(() => timelineContentRef.current, [])
   );
 
   const tryAutoMarkAsRead = useCallback(() => {
@@ -1743,6 +1852,7 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
         <Box
           direction="Column"
           justifyContent="End"
+          ref={timelineContentRef}
           style={{ minHeight: '100%', padding: `${config.space.S600} 0` }}
         >
           {!canPaginateBack && rangeAtStart && getItems().length > 0 && (
