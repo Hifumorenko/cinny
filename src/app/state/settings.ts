@@ -39,6 +39,7 @@ export interface Settings {
   encUrlPreview: boolean;
   showHiddenEvents: boolean;
   legacyUsernameColor: boolean;
+  /** Toggled from the composer (see RoomInput's eye icon), not exposed as a Settings-page control. */
   randomizeFilename: boolean;
 
   showNotifications: boolean;
@@ -74,7 +75,7 @@ const defaultSettings: Settings = {
   encUrlPreview: false,
   showHiddenEvents: false,
   legacyUsernameColor: false,
-  randomizeFilename: false,
+  randomizeFilename: true,
 
   showNotifications: true,
   isNotificationSounds: true,

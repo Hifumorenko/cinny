@@ -132,7 +132,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
-    const [randomizeFilename] = useSetting(settingsAtom, 'randomizeFilename');
+    // A global, persisted setting (like the rest of settingsAtom) rather than
+    // per-room local state — RoomInput remounts per room, so local state
+    // would silently reset the preference on every room switch. Toggled from
+    // the composer's eye icon rather than exposed on the Settings page.
+    const [randomizeFilename, setRandomizeFilename] = useSetting(settingsAtom, 'randomizeFilename');
     const direct = useIsDirectRoom();
     const commands = useCommands(mx, room);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -610,6 +614,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 onClick={() => setToolbar(!toolbar)}
               >
                 <Icon src={toolbar ? Icons.AlphabetUnderline : Icons.Alphabet} />
+              </IconButton>
+              <IconButton
+                variant="SurfaceVariant"
+                size="300"
+                radii="300"
+                onClick={() => setRandomizeFilename((v) => !v)}
+                aria-pressed={randomizeFilename}
+                aria-label="Randomize Filenames on Upload"
+              >
+                <Icon src={randomizeFilename ? Icons.EyeBlind : Icons.Eye} filled={randomizeFilename} />
               </IconButton>
               <UseStateProvider initial={undefined}>
                 {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
