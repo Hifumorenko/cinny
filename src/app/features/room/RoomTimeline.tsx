@@ -1294,7 +1294,9 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                         <ImageContent
                           {...props}
                           autoPlay={mediaAutoLoad}
-                          renderImage={(p) => <Image {...p} loading="lazy" />}
+                          renderImage={(p) => (
+                            <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
+                          )}
                           renderViewer={(p) => <ImageViewer {...p} />}
                         />
                       )}
@@ -1395,7 +1397,9 @@ export function RoomTimeline({ room, eventId, roomInputRef, editor }: RoomTimeli
                   <ImageContent
                     {...props}
                     autoPlay={mediaAutoLoad}
-                    renderImage={(p) => <Image {...p} loading="lazy" />}
+                    renderImage={(p) => (
+                      <Image {...p} loading="lazy" style={{ cursor: 'default' }} />
+                    )}
                     renderViewer={(p) => <ImageViewer {...p} />}
                   />
                 )}

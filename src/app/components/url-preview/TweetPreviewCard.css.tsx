@@ -161,9 +161,7 @@ export const TweetMediaButton = style([
     padding: 0,
     border: 'none',
     background: 'none',
-    // Deliberately not a pointer: the frame opens a viewer but should not
-    // advertise itself as a link.
-    cursor: 'default',
+    cursor: 'pointer',
   },
 ]);
 
