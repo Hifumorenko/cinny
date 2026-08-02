@@ -1,3 +1,5 @@
+This fork is for personal use only. Yes, it is vibe coded. It will NOT be merged into Cinny.
+---
 # Cinny
 <p>
     <a href="https://github.com/ajbura/cinny/releases">
