@@ -1,9 +1,9 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import FileSaver from 'file-saver';
 import classNames from 'classnames';
-import { Avatar, Box, Icon, IconButton, Icons, Text, as } from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
 import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { PanBounds, clamp, usePan } from '../../hooks/usePan';
@@ -81,6 +81,17 @@ const WHEEL_ZOOM_SENSITIVITY = 0.001;
 /** Extra pan room past the strict edge-to-edge bound, as a fraction of the viewer's own size. */
 const PAN_SLACK = 0.4;
 
+/** How long the download button shows its result glyph before reverting to the plain download icon. */
+const DOWNLOAD_FEEDBACK_MS = 2000;
+
+/** Icon/color/label for each state of the download button. `loading` shows a spinner instead of `icon`. */
+const DOWNLOAD_BUTTON_STATE = {
+  idle: { icon: Icons.Download, variant: 'SurfaceVariant', label: 'Download' },
+  loading: { icon: Icons.Download, variant: 'SurfaceVariant', label: 'Downloading' },
+  success: { icon: Icons.Check, variant: 'Success', label: 'Downloaded' },
+  error: { icon: Icons.Warning, variant: 'Critical', label: 'Download Failed' },
+} as const;
+
 /** Feather's "maximize" glyph — folds ships no fit-to-screen icon of its own. */
 const maximizeIconSrc = (): JSX.Element => (
   <g fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -118,6 +129,12 @@ export const ImageViewer = as<'div', ImageViewerProps>(
 
     const containerRef = useRef<HTMLDivElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
+
+    const [downloadStatus, setDownloadStatus] = useState<keyof typeof DOWNLOAD_BUTTON_STATE>(
+      'idle'
+    );
+    const downloadResetTimeoutRef = useRef<number>();
+    useEffect(() => () => window.clearTimeout(downloadResetTimeoutRef.current), []);
 
     /**
      * How far the image may be dragged off-center, for `targetZoom` (the
@@ -158,20 +175,34 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const { pan, setPan, cursor, onMouseDown } = usePan(true, zoom, getBounds);
 
     const handleDownload = async () => {
-      // `downloadSrc` is typically a third-party host — a CDN or a proxy — and
-      // any of them can be down, rate limiting, or hold no copy of this
-      // particular file. `src` therefore goes last, as the guaranteed one: it
-      // is the copy already on screen, so it always works, but it can be the
-      // lower-quality one, which is why every step down to it is announced
-      // rather than passing silently. A silent downgrade saves a file that
-      // looks right and isn't.
-      const fileContent = await downloadFirst([...asUrlList(downloadSrc), src]);
-      // Callers whose name comes from a real filename already carry an
-      // extension; ones naming the file after a title (a pixiv artwork, say)
-      // don't, and an extensionless save is one the OS can't open. The
-      // downloaded blob is the only thing that knows the true format — the
-      // requested url's extension can be a placeholder the host ignores.
-      FileSaver.saveAs(fileContent, fileNameWithExt(downloadName ?? alt, fileContent.type));
+      // A click mid-download would otherwise start a second, redundant fetch.
+      if (downloadStatus === 'loading') return;
+      window.clearTimeout(downloadResetTimeoutRef.current);
+      setDownloadStatus('loading');
+      try {
+        // `downloadSrc` is typically a third-party host — a CDN or a proxy — and
+        // any of them can be down, rate limiting, or hold no copy of this
+        // particular file. `src` therefore goes last, as the guaranteed one: it
+        // is the copy already on screen, so it always works, but it can be the
+        // lower-quality one, which is why every step down to it is announced
+        // rather than passing silently. A silent downgrade saves a file that
+        // looks right and isn't.
+        const fileContent = await downloadFirst([...asUrlList(downloadSrc), src]);
+        // Callers whose name comes from a real filename already carry an
+        // extension; ones naming the file after a title (a pixiv artwork, say)
+        // don't, and an extensionless save is one the OS can't open. The
+        // downloaded blob is the only thing that knows the true format — the
+        // requested url's extension can be a placeholder the host ignores.
+        FileSaver.saveAs(fileContent, fileNameWithExt(downloadName ?? alt, fileContent.type));
+        setDownloadStatus('success');
+      } catch (err) {
+        console.error('Failed to download media.', err);
+        setDownloadStatus('error');
+      }
+      downloadResetTimeoutRef.current = window.setTimeout(
+        () => setDownloadStatus('idle'),
+        DOWNLOAD_FEEDBACK_MS
+      );
     };
 
     const handleWheel = (evt: React.WheelEvent) => {
@@ -337,14 +368,23 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               <Icon style={{ color: 'white' }} size="100" src={maximizeIconSrc} />
             </IconButton>
             <IconButton
-              variant="SurfaceVariant"
-              fill="None"
+              variant={DOWNLOAD_BUTTON_STATE[downloadStatus].variant}
+              fill={downloadStatus === 'success' || downloadStatus === 'error' ? 'Soft' : 'None'}
               size="400"
               radii="Pill"
               onClick={handleDownload}
-              aria-label="Download"
+              aria-label={DOWNLOAD_BUTTON_STATE[downloadStatus].label}
             >
-              <Icon style={{ color: 'white' }} size="100" src={Icons.Download} />
+              {downloadStatus === 'loading' ? (
+                <Spinner style={{ color: 'white' }} size="100" />
+              ) : (
+                <Icon
+                  style={downloadStatus === 'idle' ? { color: 'white' } : undefined}
+                  size="100"
+                  src={DOWNLOAD_BUTTON_STATE[downloadStatus].icon}
+                  filled={downloadStatus !== 'idle'}
+                />
+              )}
             </IconButton>
             {canOpenExternally && (
               <IconButton
