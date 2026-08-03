@@ -39,6 +39,29 @@ export const useUserPresence = (userId: string): UserPresence | undefined => {
 
   const [presence, setPresence] = useState(() => (user ? getUserPresence(user) : undefined));
 
+  /**
+   * Who the `presence` above actually describes. Without this the state
+   * outlives the argument that produced it: the initialiser only ever runs on
+   * the first mount, so a component instance reused for a different user —
+   * which the chat list does constantly, being virtualized and keyed by row
+   * index rather than room — carries the previous user's presence over. That
+   * is not merely a flicker either. Nothing here would ever correct it: the
+   * listener below only fires when that new user's presence *changes*, and
+   * the fetch below is skipped outright when the SDK already holds their
+   * presence, so the row could sit indefinitely showing a dot and status
+   * message belonging to somebody else.
+   *
+   * Assigning during render rather than in an effect is React's own way of
+   * resetting state on a changed input, and it re-renders before anything
+   * paints, so no stale dot is ever shown. `mx.getUser` hands back the stored
+   * instance for a given id, so this comparison is stable and cannot loop.
+   */
+  const [presenceOf, setPresenceOf] = useState({ userId, user });
+  if (presenceOf.userId !== userId || presenceOf.user !== user) {
+    setPresenceOf({ userId, user });
+    setPresence(user ? getUserPresence(user) : undefined);
+  }
+
   useEffect(() => {
     const updatePresence: UserEventHandlerMap[UserEvent.Presence] = (event, u) => {
       if (u.userId === user?.userId) {
