@@ -6,6 +6,8 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
 
 - **Twitter/X preview cards** — pasted tweet links expand into a rich card (author, text, image), instead of a bare link.
   - *Control:* click the card's image to open it in the media viewer, same as any other image.
+- **Pixiv preview cards** — pasted pixiv.net artwork links expand into a rich card (title, description, artwork image), instead of a bare link. Metadata is fetched via Phixiv rather than pixiv.net directly, since pixiv only exposes a clean embeddable image for logged-in/R-18-unlocked scrapers.
+  - *Control:* click the card's image to open it in the media viewer, same as any other image.
 - **YouTube embeds** — YouTube links expand into an inline, playable embed.
   - *Control:* click the embed to play it in place; no extra tab needed.
 - **GIF embeds** — GIF links (e.g. Tenor/Giphy) expand into an inline, animated preview.

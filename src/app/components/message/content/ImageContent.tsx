@@ -154,10 +154,12 @@ export const ImageContent = as<'div', ImageContentProps>(
     }, [autoPlay, loadSrc]);
 
     const modalRef = useRef<HTMLDivElement>(null);
-    const mediaKey =
-      viewable && srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+    const navigable = viewable && srcState.status === AsyncStatus.Success;
     const closeViewer = useCallback(() => setViewer(false), []);
-    const { onPrev, onNext } = useMediaGalleryNav(mediaKey, closeViewer);
+    const { navKeyFor, onPrev, onNext } = useMediaGalleryNav(
+      navigable ? 0 : undefined,
+      closeViewer
+    );
 
     return (
       <Box className={classNames(css.RelativeBase, className)} {...props} ref={ref}>
@@ -246,7 +248,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                     href={externalUrl}
                     target="_blank"
                     rel="noreferrer"
-                    data-media-nav={mediaKey}
+                    data-media-nav={navKeyFor()}
                     onClick={(evt) => {
                       // Let a middle click, or a modifier held on a plain
                       // click, open the media in a new tab like any link.
@@ -266,7 +268,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                 <button
                   className={css.MediaButton}
                   type="button"
-                  data-media-nav={mediaKey}
+                  data-media-nav={navKeyFor()}
                   onClick={() => setViewer(true)}
                 >
                   {image}

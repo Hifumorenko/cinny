@@ -33,7 +33,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
     };
 
     const closeViewer = useCallback(() => setViewer(false), []);
-    const { onPrev, onNext } = useMediaGalleryNav(url, closeViewer);
+    const { navKeyFor, onPrev, onNext } = useMediaGalleryNav(0, closeViewer);
 
     return (
       <Attachment {...props} ref={ref} outlined={outlined} className={css.GifAttachmentRoot}>
@@ -73,7 +73,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
                 // handler refuses to open a blurred frame, so offering it to
                 // prev/next would stall navigation on something that cannot
                 // open. Revealing it puts it back in the gallery.
-                data-media-nav={blurred ? undefined : url}
+                data-media-nav={blurred ? undefined : navKeyFor()}
                 onClick={(evt) => {
                   // A blurred frame must not be openable in the viewer.
                   if (blurred) {

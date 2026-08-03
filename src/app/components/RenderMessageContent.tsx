@@ -26,6 +26,7 @@ import {
   VideoContent,
 } from './message';
 import {
+  PixivPreviewCard,
   TweetPreviewCard,
   UrlPreviewCard,
   UrlPreviewHolder,
@@ -37,6 +38,7 @@ import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
 import { testMatrixTo } from '../plugins/matrix-to';
 import { parseTwitterStatusUrl, testTwitterStatusUrl } from '../plugins/fixupx';
+import { parsePixivArtworkUrl, testPixivArtworkUrl } from '../plugins/phixiv';
 import { parseYouTubeUrl, testYouTubeUrl } from '../plugins/youtube';
 import { MAX_GIF_EMBEDS, testGifUrl } from '../plugins/gif';
 import { getSpoiledUrls } from '../utils/dom';
@@ -127,12 +129,17 @@ export function RenderMessageContent({
     // previews live in.
     const statusUrls = filteredUrls.filter(testTwitterStatusUrl);
     const youtubeUrls = filteredUrls.filter(testYouTubeUrl);
+    const pixivUrls = filteredUrls.filter(testPixivArtworkUrl);
     // A message stuffed with gif links falls back to a normal preview for all
     // of them instead of embedding any, so the timeline is not flooded.
     const gifUrls = filteredUrls.filter(testGifUrl);
     const embedGifUrls = gifUrls.length <= MAX_GIF_EMBEDS ? gifUrls : [];
     const otherUrls = filteredUrls.filter(
-      (url) => !testTwitterStatusUrl(url) && !testYouTubeUrl(url) && !embedGifUrls.includes(url)
+      (url) =>
+        !testTwitterStatusUrl(url) &&
+        !testYouTubeUrl(url) &&
+        !testPixivArtworkUrl(url) &&
+        !embedGifUrls.includes(url)
     );
 
     // An embed stays covered when the sender spoiled the link it came from.
@@ -153,6 +160,11 @@ export function RenderMessageContent({
         (id) => id !== undefined
       )
     );
+    const spoiledPixivIds = new Set(
+      Array.from(spoiledUrls, (spoiledUrl) => parsePixivArtworkUrl(spoiledUrl)?.id).filter(
+        (id) => id !== undefined
+      )
+    );
 
     return (
       <>
@@ -168,6 +180,14 @@ export function RenderMessageContent({
             key={url}
             url={url}
             spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id)}
+          />
+        ))}
+        {pixivUrls.map((url) => (
+          <PixivPreviewCard
+            key={url}
+            url={url}
+            ts={ts}
+            spoiler={spoiledPixivIds.has(parsePixivArtworkUrl(url)?.id)}
           />
         ))}
         {/* A gif has no id to canonicalize onto, so its own url is matched verbatim. */}

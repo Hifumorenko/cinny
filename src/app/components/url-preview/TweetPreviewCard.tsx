@@ -50,6 +50,8 @@ function XLogo({ size }: { size: number }) {
 }
 
 type ViewingMedia = {
+  /** Which frame of the mosaic this viewer came from, for gallery prev/next. */
+  index: number;
   src: string;
   alt: string;
   /**
@@ -173,7 +175,7 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
   };
 
   const closeViewer = useCallback(() => setViewing(undefined), []);
-  const { onPrev, onNext } = useMediaGalleryNav(viewing?.src, closeViewer);
+  const { navKeyFor, onPrev, onNext } = useMediaGalleryNav(viewing?.index, closeViewer);
 
   if (media.length === 0) return null;
   const count = media.length as 1 | 2 | 3 | 4;
@@ -184,8 +186,9 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
   const singleRatio =
     count === 1 && only.width && only.height ? `${only.width} / ${only.height}` : undefined;
 
-  const view = (item: FixupxMedia) =>
+  const view = (item: FixupxMedia, index: number) =>
     setViewing({
+      index,
       src: imageSrc(item) ?? item.url,
       alt: (isPhoto(item) ? item.altText : undefined) || description || 'Attachment',
       downloadSrc: item.url,
@@ -222,7 +225,7 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
                     // handler refuses to open a blurred frame, so offering it
                     // to prev/next would stall navigation on something that
                     // cannot open. Revealing it puts it back in the gallery.
-                    data-media-nav={blurred ? undefined : src}
+                    data-media-nav={blurred ? undefined : navKeyFor(index)}
                     onClick={(evt) => {
                       // A blurred frame must not be openable in the viewer.
                       if (blurred) {
@@ -233,7 +236,7 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
                       // click, open the media in a new tab like any link.
                       if (evt.button !== 0 || evt.ctrlKey || evt.metaKey || evt.shiftKey) return;
                       evt.preventDefault();
-                      view(item);
+                      view(item, index);
                     }}
                   >
                     <img

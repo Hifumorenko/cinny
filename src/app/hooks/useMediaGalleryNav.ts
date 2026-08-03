@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { ModalMedia, OverlayBackdropNoAnimation } from '../styles/Modal.css';
 
 /** Marks the room timeline's own scroll container, so navigation is scoped to it. */
 const GALLERY_ROOT_ATTR = 'data-room-timeline-scroll';
 const GALLERY_ROOT_SELECTOR = `[${GALLERY_ROOT_ATTR}]`;
-/** Marks every clickable media element eligible for prev/next navigation. */
+/**
+ * Marks every clickable media element eligible for prev/next navigation. Its
+ * value is a key minted by `useMediaGalleryNav` — never anything derived from
+ * the media itself; see that hook for why that distinction is load-bearing.
+ */
 export const MEDIA_NAV_ATTR = 'data-media-nav';
 
 /**
@@ -195,15 +199,30 @@ let current: { direction: 1 | -1; cancelled: boolean } | undefined;
  * (including its own async src resolution, spoiler state, etc.) instead of
  * duplicating any of that here.
  *
- * `mediaKey` identifies which rendered `[data-media-nav]` element the
- * currently-open viewer came from (typically its resolved media URL) — pass
- * `undefined` while no viewer is open. Only available when that element
- * lives inside the room timeline's own scroll container; elsewhere
- * `onPrev`/`onNext` come back `undefined` so the viewer hides its navigation
- * controls rather than showing buttons that would silently do nothing.
+ * `activeIndex` says which of this component's own frames the open viewer
+ * came from — `0` where there is only one, the frame's index within a
+ * multi-frame mosaic — or `undefined` while no viewer is open. Stamp
+ * `navKeyFor(index)` onto each frame's `[data-media-nav]` element so it can
+ * be found again. Only available when that element lives inside the room
+ * timeline's own scroll container; elsewhere `onPrev`/`onNext` come back
+ * `undefined` so the viewer hides its navigation controls rather than
+ * showing buttons that would silently do nothing.
+ *
+ * Those keys are minted here, off a per-instance `useId`, rather than taken
+ * from callers. A lookup resolves a key to the *first* element carrying it,
+ * so any value derived from the media itself — a url, an mxc, a status id —
+ * is a cycle waiting to happen: the same picture, gif or post sent twice
+ * hands both copies one key, every lookup lands on the earlier copy, and
+ * stepping forward walks back onto itself instead of moving on. Minting the
+ * key per mounted frame makes that collision impossible to reintroduce from
+ * a call site.
  */
-export const useMediaGalleryNav = (mediaKey: string | undefined, close: () => void) => {
+export const useMediaGalleryNav = (activeIndex: number | undefined, close: () => void) => {
   const [inGallery, setInGallery] = useState(false);
+
+  const idBase = useId();
+  const navKeyFor = useCallback((index = 0): string => `${idBase}:${index}`, [idBase]);
+  const mediaKey = activeIndex === undefined ? undefined : navKeyFor(activeIndex);
 
   useEffect(() => {
     if (!mediaKey) {
@@ -246,7 +265,20 @@ export const useMediaGalleryNav = (mediaKey: string | undefined, close: () => vo
         if (!target) {
           // Nudges the timeline's own scroll-triggered pagination toward the
           // edge, then waits briefly for a newly rendered item to show up.
-          root.scrollTop = direction === -1 ? 0 : root.scrollHeight;
+          //
+          // Moves the viewed frame to the edge of the viewport, and never the
+          // scroller to its own extreme. The timeline virtualizes, so jumping
+          // the whole way scrolls the viewed message clean out of the rendered
+          // range — unmounting it, and the open viewer along with it. That is
+          // what turned "there is nothing after this one" into "the viewer
+          // shuts itself"; keeping the frame on screen keeps it mounted, so
+          // running off the end is simply a no-op.
+          const restoreScrollTop = root.scrollTop;
+          const rootRect = root.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          root.scrollTop +=
+            direction === -1 ? elRect.bottom - rootRect.bottom : elRect.top - rootRect.top;
+
           for (
             let attempt = 0;
             attempt < POLL_ATTEMPTS && !target && !state.cancelled;
@@ -256,6 +288,11 @@ export const useMediaGalleryNav = (mediaKey: string | undefined, close: () => vo
             await sleep(POLL_INTERVAL_MS);
             target = findTarget();
           }
+
+          // Nothing came in, so this really is the end of the gallery: put the
+          // timeline back where the reader had it rather than leaving it
+          // parked at the nudge.
+          if (!target) root.scrollTop = restoreScrollTop;
         }
 
         if (state.cancelled || !target) return;
@@ -322,6 +359,7 @@ export const useMediaGalleryNav = (mediaKey: string | undefined, close: () => vo
   );
 
   return {
+    navKeyFor,
     onPrev: inGallery ? () => navigate(-1) : undefined,
     onNext: inGallery ? () => navigate(1) : undefined,
   };
