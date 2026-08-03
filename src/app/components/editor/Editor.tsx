@@ -24,7 +24,20 @@ import { CustomElement } from './slate';
 import * as css from './Editor.css';
 import { toggleKeyboardShortcut } from './keyboard';
 
-const initialValue: CustomElement[] = [
+/**
+ * Built fresh for every editor, never shared. `<Slate>` assigns this straight
+ * onto `editor.children` when it mounts, and slate-react's DOM bookkeeping
+ * (which element renders which node, and where that node sits) is keyed on
+ * node object *identity*. Handing two live editors — the composer and a
+ * message being edited, say — one set of node objects lets whichever rendered
+ * last overwrite the other's entries, and the loser can no longer resolve its
+ * own DOM selection back into its own model: keystrokes land in the
+ * contenteditable but never in the document. That reads as a box holding
+ * visible text that still shows its placeholder and refuses to send, and it
+ * outlives the edit, because the nodes stay shared — an untouched node is
+ * carried over by identity into every later revision of the document.
+ */
+const createInitialValue = (): CustomElement[] => [
   {
     type: BlockType.Paragraph,
     children: [{ text: '' }],
@@ -90,6 +103,10 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
     },
     ref
   ) => {
+    // Per mount, so remounting this editor also re-seeds it with its own
+    // nodes rather than reviving whichever ones it last shared.
+    const [initialValue] = useState(createInitialValue);
+
     const renderElement = useCallback(
       (props: RenderElementProps) => <RenderElement {...props} />,
       []
