@@ -144,3 +144,37 @@ export const getFileNameWithoutExt = (fileName: string): string => {
   if (extStart === 0 || extStart === -1) return fileName;
   return fileName.slice(0, extStart);
 };
+
+/**
+ * A trailing dot followed by an unbroken run of alphanumerics carrying at least
+ * one letter. That letter is what separates a real extension from a dot which
+ * merely happens to sit near the end of a name: ".mp4" and ".7z" qualify, the
+ * tails of "v1.0" and "Fig. 3" do not.
+ */
+const FILE_EXT_REG = /\.[a-z0-9]*[a-z][a-z0-9]*$/i;
+
+/**
+ * `fileName` with an extension for `mimeType` appended, unless it already ends
+ * in one. For saving media named after something other than a filename — a
+ * title, say — where an extensionless file is one the OS cannot open. Never
+ * rewrites an extension already there, even a mismatched one: that name came
+ * from somewhere that knew it, and this doesn't.
+ */
+/**
+ * Where the mime subtype is not the extension anyone actually writes. Pixiv
+ * names its own jpeg originals "_p0.jpg", and a file saved from one should
+ * match rather than read as a different file in a directory listing.
+ */
+const EXT_BY_SUBTYPE: Record<string, string> = {
+  jpeg: 'jpg',
+  'svg+xml': 'svg',
+  quicktime: 'mov',
+};
+
+export const fileNameWithExt = (fileName: string, mimeType: string): string => {
+  if (FILE_EXT_REG.test(fileName)) return fileName;
+  // Parameters like "; charset=..." are not part of the subtype.
+  const subtype = mimeTypeToExt(mimeType).split(';')[0].trim().toLowerCase();
+  const ext = EXT_BY_SUBTYPE[subtype] ?? subtype;
+  return FILE_EXT_REG.test(`.${ext}`) ? `${fileName}.${ext}` : fileName;
+};

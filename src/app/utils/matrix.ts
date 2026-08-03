@@ -300,6 +300,11 @@ export const downloadMedia = async (src: string): Promise<Blob> => {
   // this request is authenticated by service worker
   // no referrer because some third party media hosts reject requests carrying one
   const res = await fetch(src, { method: 'GET', referrerPolicy: 'no-referrer' });
+  // A 404/5xx still has a perfectly readable body — the host's error page — and
+  // saving that under the media's own filename produces a file that looks
+  // downloaded but isn't. Rejecting lets callers show a failure, or fall back to
+  // another source for the same media.
+  if (!res.ok) throw new Error(`Failed to download media: ${res.status} ${res.statusText}`);
   const blob = await res.blob();
   return blob;
 };

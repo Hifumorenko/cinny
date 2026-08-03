@@ -61,6 +61,61 @@ export const testPixivArtworkUrl = (url: string): boolean =>
 /** Plain pixiv.net, unlike `PixivArtworkLink.url` — for links meant to leave the app for the real site. */
 export const getPixivArtworkUrl = (id: string): string => `${PIXIV_BASE}/artworks/${id}`;
 
+const PIXIV_RE_BASE = 'https://pixiv.re';
+
+/**
+ * The artwork at full original resolution, for saving.
+ *
+ * Phixiv's `og:image` — and therefore the copy the homeserver scraped and the
+ * only one an mxc url can ever serve — is Pixiv's `master1200` derivative: a
+ * re-encoded JPEG capped at 1200px on its long edge, typically a fraction of
+ * the original's size. Nothing about the preview flow can do better, since
+ * Phixiv offers no route that puts the original in `og:image` and the real
+ * `img-original` path embeds the artwork's upload timestamp, which is
+ * recoverable only from a url we no longer have by then (the homeserver hands
+ * back an mxc, not the phixiv url it scraped).
+ *
+ * pixiv.re is keyed on the artwork id alone, so it needs none of that, and
+ * unlike Phixiv's own `/i/` proxy it serves CORS headers — a requirement here,
+ * because saving means reading the bytes back with `fetch`, not just pointing
+ * an `<img>` at them. It returns the original file untouched (byte-identical
+ * to what Pixiv's own `img-original` serves), and the extension in the request
+ * is ignored: `.png` is a placeholder that comes back as whatever the artwork
+ * actually is, correctly typed.
+ *
+ * Only reached on an explicit download click, so it is the one moment this
+ * card talks to anything but the homeserver. It can 404 — deleted works, or an
+ * outage — so callers must keep the mxc copy as a fallback rather than trust
+ * this to resolve.
+ *
+ * Two candidates, because neither form covers every work and which one applies
+ * is not knowable from the id:
+ *
+ * - `{id}-1.png` is the first page of a multi-page work. Bare `{id}.png` also
+ *   resolves to it, but only via a 301 that carries no CORS headers — and a
+ *   redirect response must clear CORS in its own right, so a browser aborts
+ *   the whole fetch there rather than following it. Asking for the redirect
+ *   target directly is what keeps that request readable.
+ * - `{id}.png` is a single-page work, where the `-1` form is a 404 instead.
+ *
+ * Both name page 0 — pixiv.re counts pages from 1 — which is the single image
+ * the card and viewer show. Callers try them in order and keep the first that
+ * resolves.
+ */
+export const getPixivOriginalImageUrls = (id: string): string[] => [
+  `${PIXIV_RE_BASE}/${id}-1.png`,
+  `${PIXIV_RE_BASE}/${id}.png`,
+];
+
+/**
+ * What Pixiv itself calls the file — `131385841_p0` — leaving the extension to
+ * whoever ends up holding the downloaded bytes, since the format is not
+ * knowable from the id. Saving under the artwork's *title* instead loses the
+ * only identifier that ties the file back to the post it came from, and
+ * collides across the many works sharing a common title.
+ */
+export const getPixivOriginalFileName = (id: string): string => `${id}_p0`;
+
 /**
  * Phixiv bakes the artist's pixiv username into `og:title` itself, as
  * "{artwork title} by (@{username})" — there is no separate field for it, so

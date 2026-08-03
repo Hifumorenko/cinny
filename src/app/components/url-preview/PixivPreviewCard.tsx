@@ -12,7 +12,13 @@ import { AsyncStatus, useAsyncCallbackValue } from '../../hooks/useAsyncCallback
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../../utils/matrix';
-import { getPixivArtworkUrl, parsePixivArtworkUrl, splitPixivTitle } from '../../plugins/phixiv';
+import {
+  getPixivArtworkUrl,
+  getPixivOriginalFileName,
+  getPixivOriginalImageUrls,
+  parsePixivArtworkUrl,
+  splitPixivTitle,
+} from '../../plugins/phixiv';
 import * as css from './PixivPreviewCard.css';
 
 export const PixivPreviewCard = as<'div', { url: string; ts: number; spoiler?: boolean }>(
@@ -77,6 +83,7 @@ export const PixivPreviewCard = as<'div', { url: string; ts: number; spoiler?: b
     const height = preview['og:image:height'];
     const ratio = width && height ? `${width} / ${height}` : undefined;
     const postUrl = getPixivArtworkUrl(link.id);
+    const originalImageUrls = getPixivOriginalImageUrls(link.id);
 
     return (
       <Box {...props} ref={ref} className={css.PixivPreview}>
@@ -187,7 +194,19 @@ export const PixivPreviewCard = as<'div', { url: string; ts: number; spoiler?: b
             renderViewer={(p) => (
               <ImageViewer
                 {...p}
-                downloadSrc={fullImageUrl}
+                // Saves the artwork at its original resolution rather than the
+                // 1200px derivative every mxc-backed url here is capped at —
+                // see `getPixivOriginalImageUrls`. The viewer keeps
+                // *displaying* the mxc copy, which is already cached and enough
+                // to fill a screen; pulling an original that can run to tens of
+                // megabytes is worth it only when actually asked to save one.
+                // The viewer falls back to that displayed copy if none resolve.
+                downloadSrc={originalImageUrls}
+                // Pixiv's own name for the file, so a saved artwork carries the
+                // id that leads back to the post. The extension is appended
+                // from the downloaded bytes, the only thing that knows whether
+                // this particular work is a png or a jpg.
+                downloadName={getPixivOriginalFileName(link.id)}
                 // No avatar or upload-date field survives to a browser here —
                 // Phixiv bakes only the username into `og:title`, and its old
                 // JSON API that carried the rest was retired.

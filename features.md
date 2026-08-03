@@ -8,6 +8,7 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
   - *Control:* click the card's image to open it in the media viewer, same as any other image.
 - **Pixiv preview cards** — pasted pixiv.net artwork links expand into a rich card (title, description, artwork image), instead of a bare link. Metadata is fetched via Phixiv rather than pixiv.net directly, since pixiv only exposes a clean embeddable image for logged-in/R-18-unlocked scrapers.
   - *Control:* click the card's image to open it in the media viewer, same as any other image.
+  - *Control:* download from the media viewer saves the full original file — the artwork's own `{id}_p0.png`/`.jpg`, under that name — rather than the 1200px copy the card displays. Pixiv's image host serves originals only to requests carrying a pixiv.net `Referer` and sends no CORS headers, neither of which a browser can supply, so this goes through pixiv.re (keyed on the artwork id, byte-identical output). It is the one action that fetches from outside your homeserver; if it is unavailable the download falls back to the displayed copy and logs a warning.
 - **YouTube embeds** — YouTube links expand into an inline, playable embed.
   - *Control:* click the embed to play it in place; no extra tab needed.
 - **GIF embeds** — GIF links (e.g. Tenor/Giphy) expand into an inline, animated preview.

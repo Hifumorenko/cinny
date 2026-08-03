@@ -8,6 +8,7 @@ import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { PanBounds, clamp, usePan } from '../../hooks/usePan';
 import { downloadMedia } from '../../utils/matrix';
+import { fileNameWithExt } from '../../utils/mimeTypes';
 import { UserAvatar } from '../user-avatar';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
@@ -17,8 +18,12 @@ import { getGalleryNavDirection } from '../../hooks/useMediaGalleryNav';
 export type ImageViewerProps = {
   alt: string;
   src: string;
-  /** Saved instead of `src`, for hosts that will not serve a readable copy. */
-  downloadSrc?: string;
+  /**
+   * Saved instead of `src`, for hosts that will not serve a readable copy.
+   * Several may be given when the right url is not knowable up front; they are
+   * tried in order and the first that resolves is what gets saved.
+   */
+  downloadSrc?: string | string[];
   /** Saved under this name instead of the alt text. */
   downloadName?: string;
   requestClose: () => void;
@@ -43,6 +48,31 @@ export type ImageViewerProps = {
   /** Step to the previous/next media in the room timeline. Omitted entirely when there is nothing to step through. */
   onPrev?: () => void;
   onNext?: () => void;
+};
+
+/**
+ * The first of `urls` whose bytes can actually be fetched, tried in order.
+ * Rejects with the last failure if none can.
+ *
+ * Sequential rather than raced, because the later entries are fallbacks — a
+ * host that is down, rate limiting, has no copy of this particular file, or
+ * answers with a redirect it gives no CORS headers for — and asking for them
+ * up front would mean fetching whole images nobody wanted.
+ */
+const asUrlList = (src?: string | string[]): string[] => {
+  if (!src) return [];
+  return Array.isArray(src) ? src : [src];
+};
+
+const downloadFirst = async (urls: string[]): Promise<Blob> => {
+  const [url, ...rest] = urls;
+  try {
+    return await downloadMedia(url);
+  } catch (err) {
+    if (rest.length === 0) throw err;
+    console.warn(`Failed to download media from ${url}, trying ${rest[0]}.`, err);
+    return downloadFirst(rest);
+  }
 };
 
 /** How much one notch of a wheel/trackpad changes the zoom level. */
@@ -128,8 +158,20 @@ export const ImageViewer = as<'div', ImageViewerProps>(
     const { pan, setPan, cursor, onMouseDown } = usePan(true, zoom, getBounds);
 
     const handleDownload = async () => {
-      const fileContent = await downloadMedia(downloadSrc ?? src);
-      FileSaver.saveAs(fileContent, downloadName ?? alt);
+      // `downloadSrc` is typically a third-party host — a CDN or a proxy — and
+      // any of them can be down, rate limiting, or hold no copy of this
+      // particular file. `src` therefore goes last, as the guaranteed one: it
+      // is the copy already on screen, so it always works, but it can be the
+      // lower-quality one, which is why every step down to it is announced
+      // rather than passing silently. A silent downgrade saves a file that
+      // looks right and isn't.
+      const fileContent = await downloadFirst([...asUrlList(downloadSrc), src]);
+      // Callers whose name comes from a real filename already carry an
+      // extension; ones naming the file after a title (a pixiv artwork, say)
+      // don't, and an extensionless save is one the OS can't open. The
+      // downloaded blob is the only thing that knows the true format — the
+      // requested url's extension can be a placeholder the host ignores.
+      FileSaver.saveAs(fileContent, fileNameWithExt(downloadName ?? alt, fileContent.type));
     };
 
     const handleWheel = (evt: React.WheelEvent) => {
