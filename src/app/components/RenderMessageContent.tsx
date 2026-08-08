@@ -172,14 +172,14 @@ export function RenderMessageContent({
           <TweetPreviewCard
             key={url}
             url={url}
-            spoiler={spoiledStatusIds.has(parseTwitterStatusUrl(url)?.id)}
+            spoiler={spoiledStatusIds.has(parseTwitterStatusUrl(url)?.id ?? '')}
           />
         ))}
         {youtubeUrls.map((url) => (
           <YouTubePreviewCard
             key={url}
             url={url}
-            spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id)}
+            spoiler={spoiledYouTubeIds.has(parseYouTubeUrl(url)?.id ?? '')}
           />
         ))}
         {pixivUrls.map((url) => (
@@ -187,7 +187,7 @@ export function RenderMessageContent({
             key={url}
             url={url}
             ts={ts}
-            spoiler={spoiledPixivIds.has(parsePixivArtworkUrl(url)?.id)}
+            spoiler={spoiledPixivIds.has(parsePixivArtworkUrl(url)?.id ?? '')}
           />
         ))}
         {/* A gif has no id to canonicalize onto, so its own url is matched verbatim. */}
