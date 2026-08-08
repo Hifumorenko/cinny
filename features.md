@@ -38,6 +38,12 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
 
 ## Composer
 
+- **GIF picker** (powered by [KLIPY](https://klipy.com)) — a Discord-style GIF search with no categories; you type, it searches. Picking a GIF sends its direct `.gif` URL, which renders inline via the existing GIF embed (no re-upload) and respects an active reply/thread. In encrypted rooms it embeds only when **"Url Preview in Encrypted Room"** is enabled; otherwise it appears as a plain link.
+  - *Setup:* requires a personal, free Klipy API key entered in **Settings → General → GIF Search** (from [partner.klipy.com/api-keys](https://partner.klipy.com/api-keys)). The key is stored only on your device (localStorage) and is never bundled with the app — no shared key ships. Until a key is set, the GIF entry points appear greyed out with a tooltip.
+  - *Control:* opens as a third tab (**Sticker · Emoji · GIF**) inside the emoji/sticker picker, and via a dedicated **GIF** button in the chat box to the right of the emoji icon.
+  - *Control:* the picker closes only after you send a GIF or click outside it.
+- **Favorite GIFs** — star any GIF to save it; opening the picker shows your favorites by default (there is deliberately no trending/discovery feed — an empty search box shows only your own saves).
+  - *Control:* the star button on each GIF tile toggles it (gold = saved). Favorites sync across all your devices via Matrix account data (chunked so it scales past a few hundred; note account data is not end-to-end encrypted, so the homeserver can read your saved GIF URLs).
 - **Randomize filenames on upload**, toggleable per-session rather than buried in Settings.
   - *Control:* the eye icon in the chat box, next to the "Aa" formatting toggle — filled eye means filenames will be randomized before sending; toggle it off to keep original filenames.
 - **Replying with a sticker or an image/file attachment** now correctly references the message being replied to.

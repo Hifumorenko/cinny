@@ -978,6 +978,61 @@ function Messages() {
   );
 }
 
+function GifPicker() {
+  const [klipyApiKey, setKlipyApiKey] = useSetting(settingsAtom, 'klipyApiKey');
+  const [showKey, setShowKey] = useState(false);
+
+  const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
+    setKlipyApiKey(evt.currentTarget.value.trim());
+  };
+
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">GIF Search</Text>
+      <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
+        <SettingTile
+          title="Klipy API Key"
+          description={
+            <span>
+              Stored only on this device, never shared. Get a free key at{' '}
+              <a href="https://partner.klipy.com/api-keys" target="_blank" rel="noreferrer">
+                partner.klipy.com/api-keys
+              </a>
+              . The GIF tab in the emoji &amp; sticker picker unlocks once a key is set.
+            </span>
+          }
+        >
+          <Box direction="Column" style={{ marginTop: config.space.S200 }}>
+            <Input
+              variant="Secondary"
+              radii="300"
+              type={showKey ? 'text' : 'password'}
+              placeholder="Paste your Klipy API key"
+              defaultValue={klipyApiKey}
+              onChange={handleChange}
+              autoComplete="off"
+              spellCheck={false}
+              style={{ width: '100%' }}
+              after={
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Secondary"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-pressed={showKey}
+                  aria-label={showKey ? 'Hide API key' : 'Show API key'}
+                >
+                  <Icon size="100" src={showKey ? Icons.EyeBlind : Icons.Eye} />
+                </IconButton>
+              }
+            />
+          </Box>
+        </SettingTile>
+      </SequenceCard>
+    </Box>
+  );
+}
+
 type GeneralProps = {
   requestClose: () => void;
 };
@@ -1006,6 +1061,7 @@ export function General({ requestClose }: GeneralProps) {
               <DateAndTime />
               <Editor />
               <Messages />
+              <GifPicker />
             </Box>
           </PageContent>
         </Scroll>

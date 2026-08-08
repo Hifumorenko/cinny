@@ -25,6 +25,8 @@ import {
   PopOut,
   Scroll,
   Text,
+  Tooltip,
+  TooltipProvider,
   config,
   toRem,
 } from 'folds';
@@ -55,6 +57,7 @@ import {
   getMentions,
 } from '../../components/editor';
 import { EmojiBoard, EmojiBoardTab } from '../../components/emoji-board';
+import { KlipyGif } from '../../plugins/klipy';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import {
   TUploadContent,
@@ -137,6 +140,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // would silently reset the preference on every room switch. Toggled from
     // the composer's eye icon rather than exposed on the Settings page.
     const [randomizeFilename, setRandomizeFilename] = useSetting(settingsAtom, 'randomizeFilename');
+    // Controls whether the composer's GIF shortcut is active; the picker's GIF
+    // tab uses the same key (stored per-user, never shipped).
+    const [klipyApiKey] = useSetting(settingsAtom, 'klipyApiKey');
     const direct = useIsDirectRoom();
     const commands = useCommands(mx, room);
     const emojiBtnRef = useRef<HTMLButtonElement>(null);
@@ -491,6 +497,21 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       if (relation) setReplyDraft(undefined);
     };
 
+    const handleGifSelect = (gif: KlipyGif) => {
+      // Send the GIF's URL as a plain message rather than re-uploading it: a
+      // direct `.gif` link renders inline via the existing GIF embed (same as a
+      // pasted Tenor/Giphy link). In encrypted rooms this only embeds when
+      // "Url Preview in Encrypted Room" is enabled; otherwise it shows as a link.
+      const content: IContent = {
+        msgtype: MsgType.Text,
+        body: gif.sendUrl,
+      };
+      const relation = getReplyRelation();
+      if (relation) content['m.relates_to'] = relation;
+      mx.sendMessage(roomId, content as any);
+      if (relation) setReplyDraft(undefined);
+    };
+
     return (
       <div ref={ref}>
         {selectedFiles.length > 0 && (
@@ -655,7 +676,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 aria-pressed={randomizeFilename}
                 aria-label="Randomize Filenames on Upload"
               >
-                <Icon src={randomizeFilename ? Icons.EyeBlind : Icons.Eye} filled={randomizeFilename} />
+                <Icon
+                  src={randomizeFilename ? Icons.EyeBlind : Icons.Eye}
+                  filled={randomizeFilename}
+                />
               </IconButton>
               <UseStateProvider initial={undefined}>
                 {(emojiBoardTab: EmojiBoardTab | undefined, setEmojiBoardTab) => (
@@ -678,6 +702,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                         onEmojiSelect={handleEmoticonSelect}
                         onCustomEmojiSelect={handleEmoticonSelect}
                         onStickerSelect={handleStickerSelect}
+                        onGifSelect={handleGifSelect}
                         requestClose={() => {
                           setEmojiBoardTab((t) => {
                             if (t) {
@@ -721,6 +746,46 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                         }
                       />
                     </IconButton>
+                    {klipyApiKey ? (
+                      <IconButton
+                        aria-pressed={emojiBoardTab === EmojiBoardTab.Gif}
+                        aria-label="GIF Search"
+                        onClick={() => setEmojiBoardTab(EmojiBoardTab.Gif)}
+                        variant="SurfaceVariant"
+                        size="300"
+                        radii="300"
+                      >
+                        <Text size="L400">GIF</Text>
+                      </IconButton>
+                    ) : (
+                      <TooltipProvider
+                        delay={200}
+                        position="Top"
+                        tooltip={
+                          <Tooltip id="composer-gif-disabled">
+                            <Text size="T300">
+                              Add a Klipy API key in Settings → General to use GIFs.
+                            </Text>
+                          </Tooltip>
+                        }
+                      >
+                        {(triggerRef) => (
+                          <IconButton
+                            ref={triggerRef}
+                            aria-disabled
+                            aria-describedby="composer-gif-disabled"
+                            aria-label="GIF Search (API key required)"
+                            variant="SurfaceVariant"
+                            size="300"
+                            radii="300"
+                            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                            onClick={(evt) => evt.preventDefault()}
+                          >
+                            <Text size="L400">GIF</Text>
+                          </IconButton>
+                        )}
+                      </TooltipProvider>
+                    )}
                   </PopOut>
                 )}
               </UseStateProvider>

@@ -49,6 +49,14 @@ export interface Settings {
   dateFormatString: string;
 
   developerTools: boolean;
+
+  /**
+   * Personal Klipy API key (https://klipy.com/developers) used by the GIF
+   * picker. Stored per-user in localStorage — never bundled with the app — so
+   * no shared key ships in the build. The GIF picker button stays hidden until
+   * this is set.
+   */
+  klipyApiKey: string;
 }
 
 const defaultSettings: Settings = {
@@ -84,6 +92,8 @@ const defaultSettings: Settings = {
   dateFormatString: 'D MMM YYYY',
 
   developerTools: false,
+
+  klipyApiKey: '',
 };
 
 export const getSettings = () => {
