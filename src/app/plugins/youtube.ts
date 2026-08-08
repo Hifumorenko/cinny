@@ -64,6 +64,8 @@ export const parseYouTubeUrl = (url: string): YouTubeLink | undefined => {
     id = match?.[1];
   }
 
+  id = id?.split(/[&?]/)[0];
+
   if (!id || !VIDEO_ID_REG.test(id)) return undefined;
 
   const timeParam = parsed.searchParams.get('t') ?? parsed.searchParams.get('start');
