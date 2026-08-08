@@ -54,6 +54,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
 
     const closeViewer = useCallback(() => setViewer(false), []);
     const { navKeyFor, onPrev, onNext } = useMediaGalleryNav(0, closeViewer);
+    const gifFilename = /\/([^\/]+)\.gif/g.exec(url)?.[1] ?? 'GIF';
 
     return (
       <Attachment {...props} ref={ref} outlined={outlined} className={css.GifAttachmentRoot}>
@@ -159,7 +160,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
         </AttachmentBox>
         <ImageOverlay
           src={url}
-          alt="GIF"
+          alt={gifFilename}
           viewer={viewer}
           requestClose={() => setViewer(false)}
           renderViewer={(p) => (

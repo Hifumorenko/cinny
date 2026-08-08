@@ -91,8 +91,8 @@ export const FavBtn = style([
     position: 'absolute',
     // Inset enough that the fade-in slide stays clear of the container's edges
     // and rounded corners (which are clipped by overflow: hidden).
-    top: config.space.S300,
-    left: config.space.S300,
+    top: config.space.S200,
+    left: config.space.S200,
     // Above the full-tile select button so clicks always land on the star.
     zIndex: 1,
     display: 'flex',
@@ -100,8 +100,8 @@ export const FavBtn = style([
     justifyContent: 'center',
     lineHeight: 0,
     // A generous, invisible hit area around the bare star.
-    width: toRem(28),
-    height: toRem(28),
+    width: toRem(24),
+    height: toRem(24),
     border: 'none',
     background: 'none',
     cursor: 'pointer',

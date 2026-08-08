@@ -27,7 +27,7 @@ export function GifFavoriteButton({ favorite, onToggle, className }: GifFavorite
       aria-pressed={favorite}
       aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
     >
-      <Icon src={Icons.Star} filled={favorite} size="100" />
+      <Icon src={Icons.Star} filled={favorite} size="500" />
     </button>
   );
 }

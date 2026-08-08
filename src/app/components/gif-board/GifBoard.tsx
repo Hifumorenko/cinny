@@ -154,6 +154,7 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
       return;
     }
     load(query, 1);
+    scrollRef.current?.scrollTo(0, 0);
   }, [query, searching, load]);
 
   const applyQuery = useDebounce(
@@ -234,7 +235,7 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
         <Input
           variant="SurfaceVariant"
           size="400"
-          placeholder="Search KLIPY"
+          placeholder="Search Klipy"
           maxLength={100}
           after={<Icon src={Icons.Search} size="50" />}
           onChange={handleSearchChange}
@@ -248,12 +249,6 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
             {renderStatus()}
           </Box>
         </Scroll>
-      </Box>
-
-      <Box className={css.Footer} shrink="No" justifyContent="Center">
-        <Text size="T200" style={{ color: color.SurfaceVariant.OnContainer }}>
-          Powered by KLIPY
-        </Text>
       </Box>
     </Box>
   );
