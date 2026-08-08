@@ -29,11 +29,19 @@ export const Content = style({
 export const Masonry = style({
   columnCount: 2,
   columnGap: config.space.S200,
+  // Top padding so the first row's edge and hover outline aren't clipped by the
+  // scroll container / hidden under the header.
+  paddingTop: config.space.S200,
   paddingBottom: config.space.S300,
 });
 
+// Marker applied to any GIF container (picker tile or chat embed) so the
+// favorite star can reveal itself on hover of its container, wherever it lives.
+export const GifHoverArea = style({});
+
 export const GifItem = style([
   DefaultReset,
+  GifHoverArea,
   {
     position: 'relative',
     display: 'block',
@@ -81,43 +89,50 @@ export const FavBtn = style([
   FocusOutline,
   {
     position: 'absolute',
-    top: config.space.S100,
-    right: config.space.S100,
+    // Inset enough that the fade-in slide stays clear of the container's edges
+    // and rounded corners (which are clipped by overflow: hidden).
+    top: config.space.S300,
+    left: config.space.S300,
     // Above the full-tile select button so clicks always land on the star.
     zIndex: 1,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    lineHeight: 0,
+    // A generous, invisible hit area around the bare star.
     width: toRem(28),
     height: toRem(28),
-    borderRadius: config.radii.Pill,
     border: 'none',
+    background: 'none',
     cursor: 'pointer',
     color: 'white',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    // Dim by default so it reads as a control without hiding the GIF; brighter
-    // on hover/focus. Kept clickable at all times (no opacity: 0).
-    opacity: 0.75,
-    transition: 'opacity 100ms ease, background-color 100ms ease',
+    // Drop shadow keeps the bare star legible over light GIFs (no background).
+    filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7))',
+    // Hidden until the GIF is hovered; fades and slides down from the top,
+    // Discord-style. Not interactive while hidden.
+    opacity: 0,
+    transform: 'translateY(-6px)',
+    pointerEvents: 'none',
+    willChange: 'opacity, transform',
+    transition: 'opacity 150ms ease, transform 150ms ease',
 
     selectors: {
-      [`${GifItem}:hover &`]: {
+      [`${GifHoverArea}:hover &`]: {
         opacity: 1,
-      },
-      '&:hover': {
-        opacity: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        transform: 'translateY(0)',
+        pointerEvents: 'auto',
       },
       '&:focus-visible': {
         opacity: 1,
+        transform: 'translateY(0)',
+        pointerEvents: 'auto',
       },
     },
   },
 ]);
 
-// Favorited tiles show a solid gold star.
+// A favorited GIF shows a solid gold star (still only while hovered).
 export const FavBtnActive = style({
-  opacity: 1,
   color: '#ffcc4d',
 });
 

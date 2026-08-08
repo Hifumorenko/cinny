@@ -4,7 +4,11 @@ import { Box, Button, Chip, Icon, Icons, Spinner, Text, as } from 'folds';
 import { Attachment, AttachmentBox } from './attachment';
 import { ImageOverlay } from '../ImageOverlay';
 import { ImageViewer } from '../image-viewer';
+import { GifFavoriteButton } from '../gif-board';
+import { GifHoverArea } from '../gif-board/GifBoard.css';
 import { useMediaGalleryNav } from '../../hooks/useMediaGalleryNav';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useIsGifFavorite, useToggleGifFavorite } from '../../hooks/useGifFavorites';
 import * as contentCss from './content/style.css';
 import * as css from './GifAttachment.css';
 
@@ -26,6 +30,22 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
     const [error, setError] = useState(false);
     const [viewer, setViewer] = useState(false);
     const [blurred, setBlurred] = useState(spoiler ?? false);
+    // Natural size, captured on load, so a favorited chat GIF keeps a sane
+    // aspect ratio in the picker grid.
+    const [dims, setDims] = useState({ w: 0, h: 0 });
+
+    const mx = useMatrixClient();
+    const favorite = useIsGifFavorite(mx, url);
+    const toggleFavorite = useToggleGifFavorite(mx);
+    const handleToggleFavorite = () =>
+      toggleFavorite({
+        id: url,
+        title: 'GIF',
+        previewUrl: url,
+        previewWidth: dims.w,
+        previewHeight: dims.h,
+        sendUrl: url,
+      });
 
     const handleRetry = () => {
       setError(false);
@@ -37,7 +57,7 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
 
     return (
       <Attachment {...props} ref={ref} outlined={outlined} className={css.GifAttachmentRoot}>
-        <AttachmentBox className={css.GifBox}>
+        <AttachmentBox className={classNames(css.GifBox, GifHoverArea)}>
           {error ? (
             <Box
               className={classNames(contentCss.AbsoluteContainer, css.GifError)}
@@ -90,13 +110,24 @@ export const GifAttachment = as<'div', GifAttachmentProps>(
                   src={url}
                   alt="GIF"
                   loading="lazy"
-                  onLoad={() => setLoaded(true)}
+                  onLoad={(evt) => {
+                    setLoaded(true);
+                    setDims({
+                      w: evt.currentTarget.naturalWidth,
+                      h: evt.currentTarget.naturalHeight,
+                    });
+                  }}
                   onError={() => {
                     setLoaded(false);
                     setError(true);
                   }}
                 />
               </a>
+              {/* Favoriting works for external gif URLs (this embed) but not
+                  uploaded/encrypted media, which never renders as a GifAttachment. */}
+              {!blurred && (
+                <GifFavoriteButton favorite={favorite} onToggle={handleToggleFavorite} />
+              )}
               {blurred && (
                 <Box
                   className={contentCss.AbsoluteContainer}

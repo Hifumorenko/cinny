@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClientEvent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
-import { FavoriteGif, getGifFavorites, toggleGifFavorite } from '../plugins/gif-favorites';
+import {
+  FavoriteGif,
+  getGifFavorites,
+  isGifFavorite,
+  toggleGifFavorite,
+} from '../plugins/gif-favorites';
 import { AccountDataEvent } from '../../types/matrix/accountData';
+
+const isFavoritesEvent = (event: MatrixEvent): boolean =>
+  event.getType().startsWith(AccountDataEvent.CinnyGifFavorites);
 
 export const useGifFavorites = (mx: MatrixClient): FavoriteGif[] => {
   const [favorites, setFavorites] = useState(() => getGifFavorites(mx));
@@ -9,7 +17,7 @@ export const useGifFavorites = (mx: MatrixClient): FavoriteGif[] => {
   useEffect(() => {
     const handleAccountData = (event: MatrixEvent) => {
       // Favorites live across the base manifest and `<base>.<n>` chunk events.
-      if (!event.getType().startsWith(AccountDataEvent.CinnyGifFavorites)) return;
+      if (!isFavoritesEvent(event)) return;
       setFavorites(getGifFavorites(mx));
     };
 
@@ -20,6 +28,26 @@ export const useGifFavorites = (mx: MatrixClient): FavoriteGif[] => {
   }, [mx]);
 
   return favorites;
+};
+
+/** Live favorite state for a single GIF id (lighter than the full list). */
+export const useIsGifFavorite = (mx: MatrixClient, id: string): boolean => {
+  const [favorite, setFavorite] = useState(() => isGifFavorite(mx, id));
+
+  useEffect(() => {
+    setFavorite(isGifFavorite(mx, id));
+    const handleAccountData = (event: MatrixEvent) => {
+      if (!isFavoritesEvent(event)) return;
+      setFavorite(isGifFavorite(mx, id));
+    };
+
+    mx.on(ClientEvent.AccountData, handleAccountData);
+    return () => {
+      mx.removeListener(ClientEvent.AccountData, handleAccountData);
+    };
+  }, [mx, id]);
+
+  return favorite;
 };
 
 /** Set of favorite GIF ids for cheap membership checks in a grid. */

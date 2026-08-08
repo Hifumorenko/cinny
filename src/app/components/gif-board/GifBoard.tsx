@@ -9,7 +9,7 @@ import React, {
   useState,
 } from 'react';
 import { Box, Icon, Icons, Input, Scroll, Spinner, Text, color } from 'folds';
-import classNames from 'classnames';
+import { GifFavoriteButton } from './GifFavoriteButton';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -72,21 +72,7 @@ function GifTile({ gif, favorite, onSelect, onToggleFavorite }: GifTileProps) {
           draggable={false}
         />
       </button>
-      <button
-        type="button"
-        className={classNames(css.FavBtn, favorite && css.FavBtnActive)}
-        onClick={(evt) => {
-          // Keep this click on the star: never fall through to the send button
-          // beneath it, and never let the FocusTrap read it as an outside click.
-          evt.preventDefault();
-          evt.stopPropagation();
-          onToggleFavorite(gif);
-        }}
-        aria-pressed={favorite}
-        aria-label={favorite ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        <Icon src={Icons.Star} filled={favorite} size="100" />
-      </button>
+      <GifFavoriteButton favorite={favorite} onToggle={() => onToggleFavorite(gif)} />
     </div>
   );
 }
