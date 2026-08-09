@@ -53,6 +53,23 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
 
 - **Collapsed repeated events**: a run of consecutive same-kind events (e.g. several deleted messages, or someone changing their avatar a few times in a row) renders as a single line ending in a `(xN)` count instead of N separate lines. Automatic — no control to toggle it.
 
+## DM list categories
+
+- **Custom categories for Direct Messages** — group DMs into user-defined categories instead of a single flat "Chats" list. With no categories created, the list stays exactly as before; creating one splits the list into your categories plus a built-in "Uncategorized" bucket for everything else.
+  - *Control:* the **⋮** menu at the top of the DM list, or on a category header, has **"New Category"**.
+  - *Control:* a category header's **⋮** menu offers **Rename** and **Delete** (deleting moves its chats back to Uncategorized rather than removing them from your DMs).
+  - *Control:* a DM's right-click/context menu has **"Move to Category"**, opening a picker of all your categories (plus Uncategorized) to assign it to.
+  - *Control:* click a category header to collapse/expand it, same as the existing "Chats" header behavior.
+  - Categories and assignments are stored per-account in local storage (device-local, not synced across your devices).
+
+## Emoji/sticker packs
+
+- **Manual reordering of global (favorited) sticker/emoji packs** — drag-and-drop, or per-row up/down buttons, to set your own display order instead of being stuck with creation order.
+  - *Control:* grab the six-dot handle on a pack row and drag it, or use the ▲/▼ buttons next to it.
+  - The order is written straight to account data as you move a pack (no separate "Apply" step), and syncs across your devices.
+- Fixed space (and room) sticker/emoji packs appearing in a different order on every login — pack order is now sorted by creation time instead of relying on sync's unspecified state-event ordering.
+
 ## Fixes
 
 - File-drop overlay no longer stays stuck active after dragging a file out of the drop zone.
+- GIF picker button in the chat box now renders as a small bordered "GIF" badge (filling solid when active) instead of plain text, matching the visual weight of the other toolbar icons.
