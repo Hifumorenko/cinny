@@ -63,14 +63,16 @@ import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { livekitSupport } from '../../hooks/useLivekitSupport';
 import { StateEvent } from '../../../types/matrix/room';
 import { webRTCSupported } from '../../utils/rtc';
+import { CategorySwitcher } from './CategorySwitcher';
 
 type RoomNavItemMenuProps = {
   room: Room;
   requestClose: () => void;
   notificationMode?: RoomNotificationMode;
+  categorizable?: boolean;
 };
 const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
-  ({ room, requestClose, notificationMode }, ref) => {
+  ({ room, requestClose, notificationMode, categorizable }, ref) => {
     const mx = useMatrixClient();
     const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
     const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
@@ -149,6 +151,23 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
               </MenuItem>
             )}
           </RoomNotificationModeSwitcher>
+          {categorizable && (
+            <CategorySwitcher roomId={room.roomId}>
+              {(handleOpen, opened) => (
+                <MenuItem
+                  size="300"
+                  after={<Icon size="100" src={Icons.Category} />}
+                  radii="300"
+                  aria-pressed={opened}
+                  onClick={handleOpen}
+                >
+                  <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
+                    Move to Category
+                  </Text>
+                </MenuItem>
+              )}
+            </CategorySwitcher>
+          )}
         </Box>
         <Line variant="Surface" size="300" />
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
@@ -246,6 +265,7 @@ type RoomNavItemProps = {
   notificationMode?: RoomNotificationMode;
   showAvatar?: boolean;
   direct?: boolean;
+  categorizable?: boolean;
 };
 export function RoomNavItem({
   room,
@@ -254,6 +274,7 @@ export function RoomNavItem({
   direct,
   notificationMode,
   linkPath,
+  categorizable,
 }: RoomNavItemProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -436,6 +457,7 @@ export function RoomNavItem({
                   room={room}
                   requestClose={() => setMenuAnchor(undefined)}
                   notificationMode={notificationMode}
+                  categorizable={categorizable}
                 />
               </FocusTrap>
             }
