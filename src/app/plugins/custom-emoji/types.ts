@@ -5,7 +5,12 @@ import { IImageInfo } from '../../../types/matrix/common';
 /**
  * im.ponies.emote_rooms content
  */
-export type PackStateKeyToObject = Record<string, object>;
+// `order` is a client-side extension (still spec-valid, the value is only
+// documented as an extensible object): the user's manual position for this
+// pack within their global "Favorite Packs" list, lowest first. Packs with
+// no `order` (never manually reordered) sort after ordered ones, by
+// creation time.
+export type PackStateKeyToObject = Record<string, { order?: number }>;
 export type RoomIdToStateKey = Record<string, PackStateKeyToObject>;
 export type EmoteRoomsContent = {
   rooms?: RoomIdToStateKey;

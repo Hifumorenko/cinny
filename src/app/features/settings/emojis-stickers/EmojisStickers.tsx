@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Box, Text, IconButton, Icon, Icons, Scroll } from 'folds';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { GlobalPacks } from './GlobalPacks';
@@ -11,6 +11,7 @@ type EmojisStickersProps = {
 };
 export function EmojisStickers({ requestClose }: EmojisStickersProps) {
   const [imagePack, setImagePack] = useState<ImagePack>();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleImagePackViewClose = () => {
     setImagePack(undefined);
@@ -37,11 +38,11 @@ export function EmojisStickers({ requestClose }: EmojisStickersProps) {
         </Box>
       </PageHeader>
       <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
+        <Scroll ref={scrollRef} hideTrack visibility="Hover">
           <PageContent>
             <Box direction="Column" gap="700">
               <UserPack onViewPack={setImagePack} />
-              <GlobalPacks onViewPack={setImagePack} />
+              <GlobalPacks onViewPack={setImagePack} scrollRef={scrollRef} />
             </Box>
           </PageContent>
         </Scroll>

@@ -43,8 +43,15 @@ export function getRoomImagePack(room: Room, stateKey: string): ImagePack | unde
   return ImagePack.fromMatrixEvent(packId, packEvent);
 }
 
+// Sync doesn't guarantee state event order, so packs would otherwise come
+// back in a different order on every login. `origin_server_ts` is fixed at
+// creation time, so sorting by it gives a stable oldest-to-newest order.
+function sortPackEventsByCreation(packEvents: MatrixEvent[]): MatrixEvent[] {
+  return [...packEvents].sort((a, b) => a.getTs() - b.getTs());
+}
+
 export function getRoomImagePacks(room: Room): ImagePack[] {
-  const packEvents = getStateEvents(room, StateEvent.PoniesRoomEmotes);
+  const packEvents = sortPackEventsByCreation(getStateEvents(room, StateEvent.PoniesRoomEmotes));
   return makeImagePacks(packEvents);
 }
 
@@ -64,7 +71,7 @@ export function getGlobalImagePacks(mx: MatrixClient): ImagePack[] {
     const room = mx.getRoom(roomId);
     if (!room) return [];
     const packStateKeyToUnknown = roomIdToPackInfo[roomId];
-    const packEvents = getStateEvents(room, StateEvent.PoniesRoomEmotes);
+    const packEvents = sortPackEventsByCreation(getStateEvents(room, StateEvent.PoniesRoomEmotes));
     const globalPackEvents = packEvents.filter((mE) => {
       const stateKey = mE.getStateKey();
       if (typeof stateKey === 'string') return !!packStateKeyToUnknown[stateKey];
@@ -72,6 +79,18 @@ export function getGlobalImagePacks(mx: MatrixClient): ImagePack[] {
     });
     return makeImagePacks(globalPackEvents);
   });
+
+  // Manually-ordered packs (see `order` in types.ts) sort first, lowest
+  // order first; everything else keeps the creation-time order the flatMap
+  // above already produced (Array#sort is stable, so ties fall through
+  // unchanged).
+  const orderOf = (pack: ImagePack): number => {
+    const { address } = pack;
+    if (!address) return Number.MAX_SAFE_INTEGER;
+    const order = roomIdToPackInfo[address.roomId]?.[address.stateKey]?.order;
+    return typeof order === 'number' ? order : Number.MAX_SAFE_INTEGER;
+  };
+  packs.sort((a, b) => orderOf(a) - orderOf(b));
 
   return packs;
 }

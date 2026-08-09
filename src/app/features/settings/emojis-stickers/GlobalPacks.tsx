@@ -1,4 +1,12 @@
-import React, { MouseEventHandler, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  MouseEventHandler,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Box,
   Text,
@@ -20,10 +28,23 @@ import {
   Header,
   Line,
   Chip,
+  color,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
+import {
+  draggable,
+  dropTargetForElements,
+  monitorForElements,
+} from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import {
+  attachClosestEdge,
+  extractClosestEdge,
+  Edge,
+} from '@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge';
+import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { autoScrollForElements } from '@atlaskit/pragmatic-drag-and-drop-auto-scroll/element';
 import { useGlobalImagePacks, useRoomsImagePacks } from '../../../hooks/useImagePacks';
 import { SequenceCardStyle } from '../styles.css';
 import { SequenceCard } from '../../../components/sequence-card';
@@ -247,10 +268,219 @@ function GlobalPackSelector({
   );
 }
 
+// No six-dot grip glyph in folds' icon set, so it's drawn by hand to match
+// the fixed 24x24 viewBox every other `Icons.*` entry uses.
+const gripIconSrc = () => (
+  <>
+    <circle cx="9" cy="6" r="1.5" fill="currentColor" />
+    <circle cx="15" cy="6" r="1.5" fill="currentColor" />
+    <circle cx="9" cy="12" r="1.5" fill="currentColor" />
+    <circle cx="15" cy="12" r="1.5" fill="currentColor" />
+    <circle cx="9" cy="18" r="1.5" fill="currentColor" />
+    <circle cx="15" cy="18" r="1.5" fill="currentColor" />
+  </>
+);
+
+// Reorders `addresses` by moving `sourceAddress` to just before/after
+// `targetAddress`, per `edge`. Used both by drag-and-drop and (indirectly,
+// via a computed swap) the move up/down buttons.
+function reorderAddresses(
+  addresses: PackAddress[],
+  sourceAddress: PackAddress,
+  targetAddress: PackAddress,
+  edge: Edge
+): PackAddress[] {
+  const withoutSource = addresses.filter((addr) => !packAddressEqual(addr, sourceAddress));
+  const targetIndex = withoutSource.findIndex((addr) => packAddressEqual(addr, targetAddress));
+  if (targetIndex === -1) return addresses;
+  const insertIndex = edge === 'bottom' ? targetIndex + 1 : targetIndex;
+  withoutSource.splice(insertIndex, 0, sourceAddress);
+  return withoutSource;
+}
+
+// Highlights which side of the row a dragged pack would land on.
+function edgeIndicatorShadow(edge: Edge | null): string | undefined {
+  if (edge === 'top') return `inset 0 ${toRem(2)} 0 0 ${color.Primary.Main}`;
+  if (edge === 'bottom') return `inset 0 -${toRem(2)} 0 0 ${color.Primary.Main}`;
+  return undefined;
+}
+
+type PackRowReorder = {
+  index: number;
+  total: number;
+  moving: boolean;
+  onMove: (address: PackAddress, direction: -1 | 1) => void;
+};
+
+type PackRowProps = {
+  pack: ImagePack;
+  avatarUrl?: string;
+  removed: boolean;
+  applyingChanges: boolean;
+  onRemove: (address: PackAddress) => void;
+  onUndoRemove: (address: PackAddress) => void;
+  onView: (pack: ImagePack) => void;
+  // Only set for the already-favorited list — the pending-selection preview
+  // list below it isn't reorderable until it's actually saved.
+  reorder?: PackRowReorder;
+};
+function PackRow({
+  pack,
+  avatarUrl,
+  removed,
+  applyingChanges,
+  onRemove,
+  onUndoRemove,
+  onView,
+  reorder,
+}: PackRowProps) {
+  const { address } = pack;
+  const targetRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
+
+  useEffect(() => {
+    if (!reorder || !address || removed) return undefined;
+    const target = targetRef.current;
+    const handle = handleRef.current;
+    if (!target || !handle) return undefined;
+
+    return combine(
+      draggable({
+        element: target,
+        dragHandle: handle,
+        getInitialData: () => ({ address }),
+        onDragStart: () => setDragging(true),
+        onDrop: () => setDragging(false),
+      }),
+      dropTargetForElements({
+        element: target,
+        canDrop: ({ source }) => !packAddressEqual(source.data.address as PackAddress, address),
+        getData: ({ input, element }) =>
+          attachClosestEdge({ address }, { input, element, allowedEdges: ['top', 'bottom'] }),
+        onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+        onDragLeave: () => setClosestEdge(null),
+        onDrop: () => setClosestEdge(null),
+      })
+    );
+  }, [reorder, address, removed]);
+
+  if (!address) return null;
+
+  return (
+    <SequenceCard
+      ref={targetRef}
+      className={SequenceCardStyle}
+      variant={removed ? 'Critical' : 'SurfaceVariant'}
+      direction="Column"
+      gap="400"
+      style={{
+        opacity: dragging ? 0.4 : undefined,
+        boxShadow: edgeIndicatorShadow(closestEdge),
+      }}
+    >
+      <SettingTile
+        title={
+          <span style={{ textDecoration: removed ? 'line-through' : undefined }}>
+            {pack.meta.name ?? 'Unknown'}
+          </span>
+        }
+        description={<span className={LineClamp2}>{pack.meta.attribution}</span>}
+        before={
+          <Box alignItems="Center" gap="300">
+            {reorder && !removed && (
+              <Box
+                ref={handleRef}
+                alignItems="Center"
+                justifyContent="Center"
+                style={{ cursor: 'grab', touchAction: 'none', color: color.Surface.OnContainer }}
+              >
+                <Icon src={gripIconSrc} size="100" />
+              </Box>
+            )}
+            {reorder && !removed && (
+              <Box direction="Column" gap="100">
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Secondary"
+                  aria-label="Move Up"
+                  onClick={() => reorder.onMove(address, -1)}
+                  disabled={reorder.moving || reorder.index === 0}
+                >
+                  <Icon src={Icons.ChevronTop} size="50" />
+                </IconButton>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  variant="Secondary"
+                  aria-label="Move Down"
+                  onClick={() => reorder.onMove(address, 1)}
+                  disabled={reorder.moving || reorder.index === reorder.total - 1}
+                >
+                  <Icon src={Icons.ChevronBottom} size="50" />
+                </IconButton>
+              </Box>
+            )}
+            {removed ? (
+              <IconButton
+                size="300"
+                radii="Pill"
+                variant="Critical"
+                onClick={() => onUndoRemove(address)}
+                disabled={applyingChanges}
+              >
+                <Icon src={Icons.Plus} size="100" />
+              </IconButton>
+            ) : (
+              <IconButton
+                size="300"
+                radii="Pill"
+                variant="Secondary"
+                onClick={() => onRemove(address)}
+                disabled={applyingChanges}
+              >
+                <Icon src={Icons.Cross} size="100" />
+              </IconButton>
+            )}
+            <Avatar size="300" radii="300">
+              {avatarUrl ? (
+                <AvatarImage style={{ objectFit: 'contain' }} src={avatarUrl} />
+              ) : (
+                <AvatarFallback>
+                  <Icon size="400" src={Icons.Sticker} filled />
+                </AvatarFallback>
+              )}
+            </Avatar>
+          </Box>
+        }
+        after={
+          !removed && (
+            <Button
+              variant="Secondary"
+              fill="Soft"
+              size="300"
+              radii="300"
+              outlined
+              onClick={() => onView(pack)}
+            >
+              <Text size="B300">View</Text>
+            </Button>
+          )
+        }
+      />
+    </SequenceCard>
+  );
+}
+
 type GlobalPacksProps = {
   onViewPack: (imagePack: ImagePack) => void;
+  // The ancestor `Scroll` this list lives inside, so dragging a pack near
+  // its top/bottom edge auto-scrolls the list instead of being stuck.
+  scrollRef?: RefObject<HTMLDivElement>;
 };
-export function GlobalPacks({ onViewPack }: GlobalPacksProps) {
+export function GlobalPacks({ onViewPack, scrollRef }: GlobalPacksProps) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const globalPacks = useGlobalImagePacks();
@@ -339,83 +569,99 @@ export function GlobalPacks({ onViewPack }: GlobalPacksProps) {
     setMenuCords(evt.currentTarget.getBoundingClientRect());
   };
 
+  // Reordering (move buttons or drag-and-drop) writes straight to account
+  // data (no staging/Apply step, like the select/remove flow above) since
+  // moving one pack is a complete, self-contained change on its own.
+  const [movingAddress, setMovingAddress] = useState<PackAddress>();
+
+  const persistOrder = useCallback(
+    async (orderedAddresses: PackAddress[]) => {
+      const content =
+        mx.getAccountData(AccountDataEvent.PoniesEmoteRooms)?.getContent<EmoteRoomsContent>() ?? {};
+      const updatedContent: EmoteRoomsContent = JSON.parse(JSON.stringify(content));
+
+      orderedAddresses.forEach((addr, order) => {
+        const roomsToState = updatedContent.rooms ?? {};
+        const stateKeyToObj = roomsToState[addr.roomId] ?? {};
+        stateKeyToObj[addr.stateKey] = { ...stateKeyToObj[addr.stateKey], order };
+        roomsToState[addr.roomId] = stateKeyToObj;
+        updatedContent.rooms = roomsToState;
+      });
+
+      await mx.setAccountData(AccountDataEvent.PoniesEmoteRooms, updatedContent);
+    },
+    [mx]
+  );
+
+  const handleMove = useCallback(
+    async (address: PackAddress, direction: -1 | 1) => {
+      const orderedAddresses = globalPacks
+        .map((pack) => pack.address)
+        .filter((addr): addr is PackAddress => !!addr);
+      const index = orderedAddresses.findIndex((addr) => packAddressEqual(addr, address));
+      const swapIndex = index + direction;
+      if (index === -1 || swapIndex < 0 || swapIndex >= orderedAddresses.length) return;
+
+      [orderedAddresses[index], orderedAddresses[swapIndex]] = [
+        orderedAddresses[swapIndex],
+        orderedAddresses[index],
+      ];
+
+      setMovingAddress(address);
+      try {
+        await persistOrder(orderedAddresses);
+      } finally {
+        setMovingAddress(undefined);
+      }
+    },
+    [globalPacks, persistOrder]
+  );
+
+  const handleDrop = useCallback(
+    async (sourceAddress: PackAddress, targetAddress: PackAddress, edge: Edge) => {
+      if (packAddressEqual(sourceAddress, targetAddress)) return;
+      const orderedAddresses = globalPacks
+        .map((pack) => pack.address)
+        .filter((addr): addr is PackAddress => !!addr);
+      const reordered = reorderAddresses(orderedAddresses, sourceAddress, targetAddress, edge);
+
+      setMovingAddress(sourceAddress);
+      try {
+        await persistOrder(reordered);
+      } finally {
+        setMovingAddress(undefined);
+      }
+    },
+    [globalPacks, persistOrder]
+  );
+
+  useEffect(() => {
+    const scrollElement = scrollRef?.current;
+    return combine(
+      monitorForElements({
+        onDrop: ({ source, location }) => {
+          const { dropTargets } = location.current;
+          if (dropTargets.length === 0) return;
+          const sourceAddress = source.data.address as PackAddress | undefined;
+          const targetAddress = dropTargets[0].data.address as PackAddress | undefined;
+          const edge = extractClosestEdge(dropTargets[0].data);
+          if (!sourceAddress || !targetAddress || !edge) return;
+          handleDrop(sourceAddress, targetAddress, edge);
+        },
+      }),
+      ...(scrollElement ? [autoScrollForElements({ element: scrollElement })] : [])
+    );
+  }, [handleDrop, scrollRef]);
+
   const applyingChanges = applyState.status === AsyncStatus.Loading;
   const hasChanges = removedPacks.length > 0 || selectedPacks.length > 0;
 
-  const renderPack = (pack: ImagePack) => {
+  const getAvatarUrl = (pack: ImagePack) => {
     const avatarMxc = pack.getAvatarUrl(ImageUsage.Emoticon);
-    const avatarUrl = avatarMxc ? mxcUrlToHttp(mx, avatarMxc, useAuthentication) : undefined;
-    const { address } = pack;
-    if (!address) return null;
-    const removed = !!removedPacks.find((addr) => packAddressEqual(addr, address));
-
-    return (
-      <SequenceCard
-        key={pack.id}
-        className={SequenceCardStyle}
-        variant={removed ? 'Critical' : 'SurfaceVariant'}
-        direction="Column"
-        gap="400"
-      >
-        <SettingTile
-          title={
-            <span style={{ textDecoration: removed ? 'line-through' : undefined }}>
-              {pack.meta.name ?? 'Unknown'}
-            </span>
-          }
-          description={<span className={LineClamp2}>{pack.meta.attribution}</span>}
-          before={
-            <Box alignItems="Center" gap="300">
-              {removed ? (
-                <IconButton
-                  size="300"
-                  radii="Pill"
-                  variant="Critical"
-                  onClick={() => handleUndoRemove(address)}
-                  disabled={applyingChanges}
-                >
-                  <Icon src={Icons.Plus} size="100" />
-                </IconButton>
-              ) : (
-                <IconButton
-                  size="300"
-                  radii="Pill"
-                  variant="Secondary"
-                  onClick={() => handleRemove(address)}
-                  disabled={applyingChanges}
-                >
-                  <Icon src={Icons.Cross} size="100" />
-                </IconButton>
-              )}
-              <Avatar size="300" radii="300">
-                {avatarUrl ? (
-                  <AvatarImage style={{ objectFit: 'contain' }} src={avatarUrl} />
-                ) : (
-                  <AvatarFallback>
-                    <Icon size="400" src={Icons.Sticker} filled />
-                  </AvatarFallback>
-                )}
-              </Avatar>
-            </Box>
-          }
-          after={
-            !removed && (
-              <Button
-                variant="Secondary"
-                fill="Soft"
-                size="300"
-                radii="300"
-                outlined
-                onClick={() => onViewPack(pack)}
-              >
-                <Text size="B300">View</Text>
-              </Button>
-            )
-          }
-        />
-      </SequenceCard>
-    );
+    return avatarMxc ? mxcUrlToHttp(mx, avatarMxc, useAuthentication) ?? undefined : undefined;
   };
+  const isRemoved = (pack: ImagePack) =>
+    !!pack.address && !!removedPacks.find((addr) => packAddressEqual(addr, pack.address));
 
   return (
     <>
@@ -480,10 +726,38 @@ export function GlobalPacks({ onViewPack }: GlobalPacksProps) {
             }
           />
         </SequenceCard>
-        {globalPacks.map(renderPack)}
+        {globalPacks.map((pack, index) => (
+          <PackRow
+            key={pack.id}
+            pack={pack}
+            avatarUrl={getAvatarUrl(pack)}
+            removed={isRemoved(pack)}
+            applyingChanges={applyingChanges}
+            onRemove={handleRemove}
+            onUndoRemove={handleUndoRemove}
+            onView={onViewPack}
+            reorder={{
+              index,
+              total: globalPacks.length,
+              moving: !!movingAddress,
+              onMove: handleMove,
+            }}
+          />
+        ))}
         {nonGlobalPacks
           .filter((pack) => !!selectedPacks.find((addr) => packAddressEqual(pack.address, addr)))
-          .map(renderPack)}
+          .map((pack) => (
+            <PackRow
+              key={pack.id}
+              pack={pack}
+              avatarUrl={getAvatarUrl(pack)}
+              removed={isRemoved(pack)}
+              applyingChanges={applyingChanges}
+              onRemove={handleRemove}
+              onUndoRemove={handleUndoRemove}
+              onView={onViewPack}
+            />
+          ))}
       </Box>
       {hasChanges && (
         <Menu
