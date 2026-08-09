@@ -4,9 +4,8 @@ import { toRem, color, config, DefaultReset, FocusOutline } from 'folds';
 export const Base = style({
   display: 'flex',
   flexDirection: 'column',
-  maxWidth: toRem(432),
-  width: `calc(100vw - 2 * ${config.space.S400})`,
-  height: toRem(450),
+  width: '100%',
+  height: '100%',
   backgroundColor: color.Surface.Container,
   color: color.Surface.OnContainer,
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
@@ -24,10 +23,15 @@ export const Content = style({
   padding: `0 ${config.space.S300}`,
 });
 
-// Two-column masonry, like Discord's GIF picker. `columns` keeps rows of
-// mixed-height GIFs tightly packed without a layout library.
+// Masonry, like Discord's GIF picker. `columns` keeps rows of mixed-height
+// GIFs tightly packed without a layout library. `columnWidth` is a *minimum*
+// — the browser stretches columns to fill the full width (so there's never a
+// dead gap on the right) and only adds another column once there's room for
+// one at least this wide. Kept a bit under the board's default/min content
+// width divided by 2 (~199px) so 2 columns reliably still fit there even
+// after scrollbar/border overhead eats into the available space.
 export const Masonry = style({
-  columnCount: 2,
+  columnWidth: toRem(180),
   columnGap: config.space.S200,
   // Top padding so the first row's edge and hover outline aren't clipped by the
   // scroll container / hidden under the header.

@@ -2,6 +2,7 @@ import React, {
   ChangeEventHandler,
   FocusEventHandler,
   MouseEventHandler,
+  PointerEventHandler,
   ReactNode,
   RefObject,
   useCallback,
@@ -9,7 +10,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { Box, config, Icons, Scroll } from 'folds';
+import { Box, config, Icons, Scroll, toRem } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
 import { Room } from 'matrix-js-sdk';
@@ -59,6 +60,11 @@ import { settingsAtom } from '../../state/settings';
 
 const RECENT_GROUP_ID = 'recent_group';
 const SEARCH_GROUP_ID = 'search_group';
+
+// Module-level (not React state) so a user-picked board size survives the
+// board unmounting on close and remounting fresh on the next open — it only
+// needs to live for the app session, not be reactive.
+let savedBoardSize: { width: string; height: string } | null = null;
 
 type EmojiGroupItem = {
   id: string;
@@ -503,6 +509,49 @@ export function EmojiBoard({
     <EmojiBoardTabs tab={tab} onTabChange={onTabChange} showGif={showGif} gifEnabled={gifEnabled} />
   );
 
+  const boardWrapperRef = useRef<HTMLDivElement>(null);
+
+  // The board is anchored to its bottom-right corner (see the outer/inner
+  // split below), so growing it only ever needs to push the left and/or top
+  // edge outward. `axis` picks which of those the handle being dragged
+  // controls.
+  const startResize = useCallback(
+    (axis: { x?: boolean; y?: boolean }): PointerEventHandler =>
+      (evt) => {
+        const wrapperEl = boardWrapperRef.current;
+        if (!wrapperEl || evt.button !== 0) return;
+        evt.preventDefault();
+
+        const startX = evt.clientX;
+        const startY = evt.clientY;
+        const startWidth = wrapperEl.offsetWidth;
+        const startHeight = wrapperEl.offsetHeight;
+        const { userSelect } = document.body.style;
+        document.body.style.userSelect = 'none';
+
+        const handlePointerMove = (moveEvt: PointerEvent) => {
+          if (axis.x) wrapperEl.style.width = `${startWidth + (startX - moveEvt.clientX)}px`;
+          if (axis.y) wrapperEl.style.height = `${startHeight + (startY - moveEvt.clientY)}px`;
+        };
+        const handlePointerUp = () => {
+          document.body.style.userSelect = userSelect;
+          window.removeEventListener('pointermove', handlePointerMove);
+          window.removeEventListener('pointerup', handlePointerUp);
+          savedBoardSize = { width: wrapperEl.style.width, height: wrapperEl.style.height };
+        };
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+      },
+    []
+  );
+
+  const boardInitialWidth = `min(${toRem(432)}, calc(100vw - 2 * ${config.space.S400}))`;
+  const boardInitialHeight = toRem(450);
+  const boardWidth = savedBoardSize?.width ?? boardInitialWidth;
+  const boardHeight = savedBoardSize?.height ?? boardInitialHeight;
+  const RESIZE_CORNER = toRem(10);
+  const RESIZE_EDGE = toRem(6);
+
   return (
     <FocusTrap
       focusTrapOptions={{
@@ -518,94 +567,165 @@ export function EmojiBoard({
         escapeDeactivates: stopPropagation,
       }}
     >
-      {/* Stable wrapper: keeps a single, unchanging container element for the
-          FocusTrap so switching tabs (emoji/sticker ↔ GIF) never leaves it
-          pointing at a detached node — which used to make every click inside
-          the swapped-in content read as "outside" and close the board. */}
-      <div style={{ display: 'inline-flex' }}>
-        {tab === EmojiBoardTab.Gif && onGifSelect ? (
-          <GifContent
-            header={tabsNode}
-            onGifSelect={(gif) => {
-              onGifSelect(gif);
-              requestClose();
+      {/* Outer anchor: a stable, never-resized element so FocusTrap always
+          points at the same node across tab switches, and so the popout
+          positioning logic (which measures this element once) is never
+          disturbed by resizing. It keeps the board's original footprint;
+          the actual resizable box below is absolutely positioned over its
+          bottom-right corner, so growing it (via the handles) only ever
+          pushes the left and/or top edge outward — the corner nearest the
+          trigger button stays put, matching how the popout is anchored. */}
+      <div
+        style={{
+          position: 'relative',
+          width: boardInitialWidth,
+          height: boardInitialHeight,
+        }}
+      >
+        <div
+          ref={boardWrapperRef}
+          style={{
+            position: 'absolute',
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            width: boardWidth,
+            height: boardHeight,
+            minWidth: boardInitialWidth,
+            minHeight: boardInitialHeight,
+            maxWidth: `calc(100vw - 2 * ${config.space.S400})`,
+            maxHeight: `calc(100vh - 2 * ${config.space.S400})`,
+            overflow: 'hidden',
+          }}
+        >
+          {tab === EmojiBoardTab.Gif && onGifSelect ? (
+            <GifContent
+              header={tabsNode}
+              onGifSelect={(gif) => {
+                onGifSelect(gif);
+                requestClose();
+              }}
+            />
+          ) : (
+            <EmojiBoardLayout
+              header={
+                <Box direction="Column" gap="200">
+                  {tabsNode}
+                  <SearchInput
+                    key={tab}
+                    query={result?.query}
+                    onChange={handleOnChange}
+                    allowTextCustomEmoji={allowTextCustomEmoji}
+                    onTextCustomEmojiSelect={handleTextCustomEmojiSelect}
+                  />
+                </Box>
+              }
+              sidebar={
+                emojiTab ? (
+                  <EmojiSidebar
+                    activeGroupAtom={activeGroupIdAtom}
+                    packs={imagePacks}
+                    onScrollToGroup={handleScrollToGroup}
+                  />
+                ) : (
+                  <StickerSidebar
+                    activeGroupAtom={activeGroupIdAtom}
+                    packs={imagePacks}
+                    onScrollToGroup={handleScrollToGroup}
+                  />
+                )
+              }
+            >
+              <Box grow="Yes">
+                <EmojiGroupHolder
+                  key={tab}
+                  contentScrollRef={contentScrollRef}
+                  previewAtom={previewAtom}
+                  onGroupItemClick={handleGroupItemClick}
+                >
+                  {searchedItems && (
+                    <EmojiGroup
+                      id={SEARCH_GROUP_ID}
+                      label={searchedItems.length ? 'Search Results' : 'No Results found'}
+                    >
+                      {searchedItems.map(renderItem)}
+                    </EmojiGroup>
+                  )}
+                  <div
+                    ref={virtualBaseRef}
+                    style={{
+                      position: 'relative',
+                      height: virtualizer.getTotalSize(),
+                    }}
+                  >
+                    {vItems.map((vItem) => {
+                      const group = groups[vItem.index];
+
+                      return (
+                        <VirtualTile
+                          virtualItem={vItem}
+                          style={{ paddingTop: config.space.S200 }}
+                          ref={virtualizer.measureElement}
+                          key={vItem.index}
+                        >
+                          <EmojiGroup key={group.id} id={group.id} label={group.name}>
+                            {group.items.map(renderItem)}
+                          </EmojiGroup>
+                        </VirtualTile>
+                      );
+                    })}
+                  </div>
+                  {tab === EmojiBoardTab.Sticker && groups.length === 0 && <NoStickerPacks />}
+                </EmojiGroupHolder>
+              </Box>
+              <Preview previewAtom={previewAtom} />
+            </EmojiBoardLayout>
+          )}
+          {/* Invisible drag zones — no grip glyph, just the matching resize
+              cursor on hover, same as the browser's own edge-resize regions. */}
+          <div
+            onPointerDown={startResize({ x: true })}
+            title="Resize"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: RESIZE_CORNER,
+              bottom: 0,
+              width: RESIZE_EDGE,
+              cursor: 'ew-resize',
+              touchAction: 'none',
+              zIndex: 2,
             }}
           />
-        ) : (
-          <EmojiBoardLayout
-            header={
-              <Box direction="Column" gap="200">
-                {tabsNode}
-                <SearchInput
-                  key={tab}
-                  query={result?.query}
-                  onChange={handleOnChange}
-                  allowTextCustomEmoji={allowTextCustomEmoji}
-                  onTextCustomEmojiSelect={handleTextCustomEmojiSelect}
-                />
-              </Box>
-            }
-            sidebar={
-              emojiTab ? (
-                <EmojiSidebar
-                  activeGroupAtom={activeGroupIdAtom}
-                  packs={imagePacks}
-                  onScrollToGroup={handleScrollToGroup}
-                />
-              ) : (
-                <StickerSidebar
-                  activeGroupAtom={activeGroupIdAtom}
-                  packs={imagePacks}
-                  onScrollToGroup={handleScrollToGroup}
-                />
-              )
-            }
-          >
-            <Box grow="Yes">
-              <EmojiGroupHolder
-                key={tab}
-                contentScrollRef={contentScrollRef}
-                previewAtom={previewAtom}
-                onGroupItemClick={handleGroupItemClick}
-              >
-                {searchedItems && (
-                  <EmojiGroup
-                    id={SEARCH_GROUP_ID}
-                    label={searchedItems.length ? 'Search Results' : 'No Results found'}
-                  >
-                    {searchedItems.map(renderItem)}
-                  </EmojiGroup>
-                )}
-                <div
-                  ref={virtualBaseRef}
-                  style={{
-                    position: 'relative',
-                    height: virtualizer.getTotalSize(),
-                  }}
-                >
-                  {vItems.map((vItem) => {
-                    const group = groups[vItem.index];
-
-                    return (
-                      <VirtualTile
-                        virtualItem={vItem}
-                        style={{ paddingTop: config.space.S200 }}
-                        ref={virtualizer.measureElement}
-                        key={vItem.index}
-                      >
-                        <EmojiGroup key={group.id} id={group.id} label={group.name}>
-                          {group.items.map(renderItem)}
-                        </EmojiGroup>
-                      </VirtualTile>
-                    );
-                  })}
-                </div>
-                {tab === EmojiBoardTab.Sticker && groups.length === 0 && <NoStickerPacks />}
-              </EmojiGroupHolder>
-            </Box>
-            <Preview previewAtom={previewAtom} />
-          </EmojiBoardLayout>
-        )}
+          <div
+            onPointerDown={startResize({ y: true })}
+            title="Resize"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: RESIZE_CORNER,
+              right: 0,
+              height: RESIZE_EDGE,
+              cursor: 'ns-resize',
+              touchAction: 'none',
+              zIndex: 2,
+            }}
+          />
+          <div
+            onPointerDown={startResize({ x: true, y: true })}
+            title="Resize"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: RESIZE_CORNER,
+              height: RESIZE_CORNER,
+              cursor: 'nwse-resize',
+              touchAction: 'none',
+              zIndex: 3,
+            }}
+          />
+        </div>
       </div>
     </FocusTrap>
   );

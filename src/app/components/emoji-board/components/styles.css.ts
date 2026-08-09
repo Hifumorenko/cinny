@@ -6,9 +6,8 @@ import { toRem, color, config, DefaultReset, FocusOutline } from 'folds';
  */
 
 export const Base = style({
-  maxWidth: toRem(432),
-  width: `calc(100vw - 2 * ${config.space.S400})`,
-  height: toRem(450),
+  width: '100%',
+  height: '100%',
   backgroundColor: color.Surface.Container,
   color: color.Surface.OnContainer,
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
