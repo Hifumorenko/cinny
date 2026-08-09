@@ -120,6 +120,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
+import * as css from './RoomInput.css';
 
 interface RoomInputProps {
   editor: Editor;
@@ -755,7 +756,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                         size="300"
                         radii="300"
                       >
-                        <Text size="L400">GIF</Text>
+                        <span className={css.GifBadge}>GIF</span>
                       </IconButton>
                     ) : (
                       <TooltipProvider
@@ -781,7 +782,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                             style={{ opacity: 0.5, cursor: 'not-allowed' }}
                             onClick={(evt) => evt.preventDefault()}
                           >
-                            <Text size="L400">GIF</Text>
+                            <span className={css.GifBadge}>GIF</span>
                           </IconButton>
                         )}
                       </TooltipProvider>
