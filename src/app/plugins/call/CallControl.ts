@@ -20,6 +20,10 @@ export class CallControl extends EventEmitter implements CallControlState {
 
   private mediaStatePromiseResolver: undefined | (() => void);
 
+  private pushToTalk = false;
+
+  private pushToTalkKeyPressed = false;
+
   private get document(): Document | undefined {
     return this.iframe.contentDocument ?? this.iframe.contentWindow?.document;
   }
@@ -106,9 +110,53 @@ export class CallControl extends EventEmitter implements CallControlState {
     return this.state.spotlight;
   }
 
+  public get pushToTalkKeyActive(): boolean {
+    return this.pushToTalk && this.pushToTalkKeyPressed;
+  }
+
+  private get effectiveAudioEnabled(): boolean {
+    if (this.pushToTalk) {
+      return this.microphone && this.pushToTalkKeyPressed;
+    }
+    return this.microphone;
+  }
+
+  public setPushToTalk(enabled: boolean) {
+    this.pushToTalk = enabled;
+    this.setMediaState({
+      audio_enabled: this.effectiveAudioEnabled,
+      video_enabled: this.video,
+    });
+    this.refreshState();
+  }
+
+  public setPushToTalkKeyPressed(pressed: boolean) {
+    if (this.pushToTalkKeyPressed === pressed) return;
+    this.pushToTalkKeyPressed = pressed;
+    if (this.pushToTalk) {
+      this.setMediaState({
+        audio_enabled: this.effectiveAudioEnabled,
+        video_enabled: this.video,
+      });
+    }
+    this.refreshState();
+  }
+
+  private refreshState() {
+    this.state = new CallControlState(
+      this.microphone,
+      this.video,
+      this.sound,
+      this.screenshare,
+      this.spotlight,
+      this.pushToTalkKeyActive
+    );
+    this.emitStateUpdate();
+  }
+
   public async applyState() {
     await this.setMediaState({
-      audio_enabled: this.microphone,
+      audio_enabled: this.effectiveAudioEnabled,
       video_enabled: this.video,
     });
     this.setSound(this.sound);
@@ -188,15 +236,29 @@ export class CallControl extends EventEmitter implements CallControlState {
     if (!data) return;
 
     const state = new CallControlState(
-      data.audio_enabled ?? this.microphone,
+      this.pushToTalk ? this.microphone : (data.audio_enabled ?? this.microphone),
       data.video_enabled ?? this.video,
       this.sound,
       this.screenshare,
-      this.spotlight
+      this.spotlight,
+      this.pushToTalkKeyActive
     );
 
     this.state = state;
     this.emitStateUpdate();
+
+    // The widget may echo an audio_enabled that doesn't match the key state
+    // (e.g. it applied the mute before the key was released) - re-assert it.
+    if (this.pushToTalk) {
+      const desiredAudioEnabled = this.effectiveAudioEnabled;
+      const currentAudioEnabled = data.audio_enabled ?? this.microphone;
+      if (currentAudioEnabled !== desiredAudioEnabled) {
+        this.setMediaState({
+          audio_enabled: desiredAudioEnabled,
+          video_enabled: data.video_enabled ?? this.video,
+        });
+      }
+    }
 
     if (this.microphone && !this.sound) {
       this.toggleSound();
@@ -217,22 +279,43 @@ export class CallControl extends EventEmitter implements CallControlState {
       this.video,
       this.sound,
       screenshare,
-      spotlight
+      spotlight,
+      this.pushToTalkKeyActive
     );
     this.emitStateUpdate();
   }
 
   public toggleMicrophone() {
-    const payload: ElementMediaStatePayload = {
-      audio_enabled: !this.microphone,
+    const previousEffective = this.effectiveAudioEnabled;
+
+    this.state = new CallControlState(
+      !this.microphone,
+      this.video,
+      this.sound,
+      this.screenshare,
+      this.spotlight,
+      this.pushToTalkKeyActive
+    );
+    this.emitStateUpdate();
+
+    const nextEffective = this.effectiveAudioEnabled;
+    if (nextEffective === previousEffective) {
+      // Arming/disarming push-to-talk while the key isn't held doesn't change
+      // the widget's actual audio state, so it never echoes a DeviceMute
+      // event back - resolve locally instead of waiting on one that never
+      // arrives (which would otherwise leave the button stuck disabled).
+      return Promise.resolve();
+    }
+
+    return this.setMediaState({
+      audio_enabled: nextEffective,
       video_enabled: this.video,
-    };
-    return this.setMediaState(payload);
+    });
   }
 
   public toggleVideo() {
     const payload: ElementMediaStatePayload = {
-      audio_enabled: this.microphone,
+      audio_enabled: this.effectiveAudioEnabled,
       video_enabled: !this.video,
     };
     return this.setMediaState(payload);
@@ -248,7 +331,8 @@ export class CallControl extends EventEmitter implements CallControlState {
       this.video,
       sound,
       this.screenshare,
-      this.spotlight
+      this.spotlight,
+      this.pushToTalkKeyActive
     );
     this.state = state;
     this.emitStateUpdate();

@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { config, toRem } from 'folds';
+import { color, config, toRem } from 'folds';
 
 export const CallViewContent = style({
   padding: config.space.S400,
@@ -25,4 +25,8 @@ export const CallControlContainer = style({
 
 export const PrescreenMessage = style({
   padding: config.space.S200,
+});
+
+export const MicrophoneButtonPushToTalkActive = style({
+  boxShadow: `0 0 0 ${config.borderWidth.B400} ${color.Success.Main}`,
 });

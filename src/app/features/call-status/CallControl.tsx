@@ -5,16 +5,23 @@ import { StatusDivider } from './components';
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { callEmbedAtom } from '../../state/callEmbed';
+import * as css from './styles.css';
 
 type MicrophoneButtonProps = {
   enabled: boolean;
+  pushToTalkKeyActive?: boolean;
   onToggle: () => Promise<unknown>;
   disabled?: boolean;
 };
-function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps) {
+function MicrophoneButton({
+  enabled,
+  pushToTalkKeyActive,
+  onToggle,
+  disabled,
+}: MicrophoneButtonProps) {
   const [micState, toggleMic] = useAsyncCallback(onToggle);
   const loading = micState.status === AsyncStatus.Loading;
-  
+
   return (
     <TooltipProvider
       position="Top"
@@ -26,6 +33,9 @@ function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps
     >
       {(anchorRef) => (
         <IconButton
+          className={
+            enabled && pushToTalkKeyActive ? css.MicrophoneButtonPushToTalkActive : undefined
+          }
           ref={anchorRef}
           variant={enabled ? 'Surface' : 'Warning'}
           fill="Soft"
@@ -161,7 +171,9 @@ export function CallControl({
   compact: boolean;
   callJoined: boolean;
 }) {
-  const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
+  const { microphone, video, sound, screenshare, pushToTalkKeyActive } = useCallControlState(
+    callEmbed.control
+  );
   const setCallEmbed = useSetAtom(callEmbedAtom);
 
   const handleMicrophoneToggle = useCallback(() => callEmbed.control.toggleMicrophone(), [callEmbed]);
@@ -186,6 +198,7 @@ export function CallControl({
       <Box alignItems="Inherit" gap="200">
         <MicrophoneButton
           enabled={microphone}
+          pushToTalkKeyActive={pushToTalkKeyActive}
           onToggle={handleMicrophoneToggle}
           disabled={!callJoined}
         />

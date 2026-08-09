@@ -42,6 +42,9 @@ export interface Settings {
   /** Toggled from the composer (see RoomInput's eye icon), not exposed as a Settings-page control. */
   randomizeFilename: boolean;
 
+  pushToTalk: boolean;
+  pushToTalkKeys: string[];
+
   showNotifications: boolean;
   isNotificationSounds: boolean;
 
@@ -84,6 +87,9 @@ const defaultSettings: Settings = {
   showHiddenEvents: false,
   legacyUsernameColor: false,
   randomizeFilename: true,
+
+  pushToTalk: false,
+  pushToTalkKeys: ['ShiftLeft'],
 
   showNotifications: true,
   isNotificationSounds: true,

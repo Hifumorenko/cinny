@@ -37,9 +37,13 @@ import {
 } from '../hooks/useCallEmbed';
 import { callChatAtom, callEmbedAtom } from '../state/callEmbed';
 import { CallEmbed } from '../plugins/call';
+import { CallControl } from '../plugins/call/CallControl';
 import { useSelectedRoom } from '../hooks/router/useSelectedRoom';
 import { ScreenSize, useScreenSizeContext } from '../hooks/useScreenSize';
 import { useMatrixClient } from '../hooks/useMatrixClient';
+import { useSetting } from '../state/hooks/settings';
+import { settingsAtom } from '../state/settings';
+import { isNonCharacterKey, mouseButtonCode } from '../utils/keyboard';
 import CallSound from '../../../public/sound/call.ogg';
 import { useCallMembersChange, useCallSession } from '../hooks/useCall';
 import { useRoomAvatar, useRoomName } from '../hooks/useRoomMeta';
@@ -365,6 +369,108 @@ function CallUtils({ embed }: { embed: CallEmbed }) {
   return null;
 }
 
+// Bound keys/mouse buttons must be captured app-wide, not just while a call is
+// joined - otherwise e.g. a mouse button bound to push-to-talk still triggers
+// the browser/webview's native "navigate back" action whenever no call is active.
+function usePushToTalk(control: CallControl | undefined) {
+  const screenSize = useScreenSizeContext();
+  const [pushToTalk] = useSetting(settingsAtom, 'pushToTalk');
+  const [pushToTalkKeys] = useSetting(settingsAtom, 'pushToTalkKeys');
+  const effectivePushToTalk = screenSize !== ScreenSize.Mobile && pushToTalk;
+
+  const pressedBindsRef = useRef<Set<string>>(new Set());
+  const controlRef = useRef(control);
+  controlRef.current = control;
+
+  useEffect(() => {
+    controlRef.current?.setPushToTalk(effectivePushToTalk);
+  }, [control, effectivePushToTalk]);
+
+  useEffect(() => {
+    if (!effectivePushToTalk || pushToTalkKeys.length === 0) return undefined;
+
+    const isTyping = (evt: KeyboardEvent) => {
+      if (isNonCharacterKey(evt.code)) return false;
+      const activeEl = document.activeElement;
+      return activeEl
+        ? activeEl.nodeName.toLowerCase() === 'input' ||
+            activeEl.nodeName.toLowerCase() === 'textarea' ||
+            activeEl.getAttribute('contenteditable') === 'true'
+        : false;
+    };
+
+    const setBindPressed = (code: string, pressed: boolean) => {
+      if (pressed) pressedBindsRef.current.add(code);
+      else pressedBindsRef.current.delete(code);
+      controlRef.current?.setPushToTalkKeyPressed(pressedBindsRef.current.size > 0);
+    };
+
+    const releaseAll = () => {
+      if (pressedBindsRef.current.size === 0) return;
+      pressedBindsRef.current.clear();
+      controlRef.current?.setPushToTalkKeyPressed(false);
+    };
+
+    const handleKeyDown = (evt: KeyboardEvent) => {
+      if (!pushToTalkKeys.includes(evt.code) || isTyping(evt)) return;
+      evt.preventDefault();
+      setBindPressed(evt.code, true);
+    };
+
+    const handleKeyUp = (evt: KeyboardEvent) => {
+      if (!pushToTalkKeys.includes(evt.code)) return;
+      evt.preventDefault();
+      setBindPressed(evt.code, false);
+    };
+
+    // Bound mouse buttons must always be suppressed, including the "back"/
+    // "forward" side buttons (button 3/4), which the webview otherwise
+    // handles as page navigation before any other JS sees the click.
+    const handleMouseDown = (evt: MouseEvent) => {
+      const code = mouseButtonCode(evt.button);
+      if (!pushToTalkKeys.includes(code)) return;
+      evt.preventDefault();
+      setBindPressed(code, true);
+    };
+
+    const handleMouseUp = (evt: MouseEvent) => {
+      const code = mouseButtonCode(evt.button);
+      if (!pushToTalkKeys.includes(code)) return;
+      evt.preventDefault();
+      setBindPressed(code, false);
+    };
+
+    const handleAuxClick = (evt: MouseEvent) => {
+      const code = mouseButtonCode(evt.button);
+      if (!pushToTalkKeys.includes(code)) return;
+      evt.preventDefault();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) releaseAll();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    window.addEventListener('mousedown', handleMouseDown, true);
+    window.addEventListener('mouseup', handleMouseUp, true);
+    window.addEventListener('auxclick', handleAuxClick, true);
+    window.addEventListener('blur', releaseAll);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+      window.removeEventListener('mousedown', handleMouseDown, true);
+      window.removeEventListener('mouseup', handleMouseUp, true);
+      window.removeEventListener('auxclick', handleAuxClick, true);
+      window.removeEventListener('blur', releaseAll);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseAll();
+    };
+  }, [effectivePushToTalk, pushToTalkKeys]);
+}
+
 type CallEmbedProviderProps = {
   children?: ReactNode;
 };
@@ -380,6 +486,8 @@ export function CallEmbedProvider({ children }: CallEmbedProviderProps) {
   const chatOnlyView = chat && screenSize !== ScreenSize.Desktop;
 
   const callVisible = callEmbed && selectedRoom === callEmbed.roomId && joined && !chatOnlyView;
+
+  usePushToTalk(callEmbed?.control);
 
   return (
     <CallEmbedContextProvider value={callEmbed}>

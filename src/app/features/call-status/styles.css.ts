@@ -19,3 +19,7 @@ export const ControlDivider = style({
 export const SpeakerAvatarOutline = style({
   boxShadow: `0 0 0 ${config.borderWidth.B600} ${color.Success.Main}`,
 });
+
+export const MicrophoneButtonPushToTalkActive = style({
+  boxShadow: `0 0 0 ${config.borderWidth.B400} ${color.Success.Main}`,
+});

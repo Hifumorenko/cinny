@@ -45,10 +45,11 @@ import {
   useThemeNames,
   useThemes,
 } from '../../../hooks/useTheme';
-import { stopPropagation } from '../../../utils/keyboard';
+import { getPushKeyLabel, mouseButtonCode, stopPropagation } from '../../../utils/keyboard';
 import { useMessageLayoutItems } from '../../../hooks/useMessageLayout';
 import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
+import { ScreenSize, useScreenSize } from '../../../hooks/useScreenSize';
 import { SequenceCardStyle } from '../styles.css';
 
 type ThemeSelectorProps = {
@@ -978,6 +979,120 @@ function Messages() {
   );
 }
 
+function getVoiceKeybindsDescription(isAssigningKey: boolean, bindCount: number): string | undefined {
+  if (isAssigningKey) return 'Press a key or mouse button to add it. Esc cancels.';
+  if (bindCount === 0) return 'No keybinds assigned yet.';
+  return undefined;
+}
+
+function Voice() {
+  const [pushToTalk, setPushToTalk] = useSetting(settingsAtom, 'pushToTalk');
+  const [pushToTalkKeys, setPushToTalkKeys] = useSetting(settingsAtom, 'pushToTalkKeys');
+  const [isAssigningKey, setIsAssigningKey] = useState(false);
+
+  useEffect(() => {
+    if (!isAssigningKey) return undefined;
+
+    const addBind = (code: string) => {
+      setPushToTalkKeys((keys) => (keys.includes(code) ? keys : [...keys, code]));
+      setIsAssigningKey(false);
+    };
+
+    const handleKeyDown = (evt: KeyboardEvent) => {
+      evt.preventDefault();
+      evt.stopPropagation();
+
+      if (evt.code === 'Escape') {
+        setIsAssigningKey(false);
+        return;
+      }
+      if (!evt.code || evt.key === 'Unidentified' || evt.key === 'Dead') return;
+
+      addBind(evt.code);
+    };
+
+    const handleMouseDown = (evt: MouseEvent) => {
+      if (evt.button === 0) return; // left click stays reserved for interacting with the UI
+      evt.preventDefault();
+      evt.stopPropagation();
+      addBind(mouseButtonCode(evt.button));
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('mousedown', handleMouseDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('mousedown', handleMouseDown, true);
+    };
+  }, [isAssigningKey, setPushToTalkKeys]);
+
+  const removeBind = (code: string) => {
+    setPushToTalkKeys((keys) => keys.filter((key) => key !== code));
+  };
+
+  return (
+    <Box direction="Column" gap="100">
+      <Text size="L400">Voice</Text>
+      <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
+        <SettingTile
+          title="Push to Talk"
+          description="Hold a bound key or mouse button to unmute your microphone in voice calls, and mute again on release."
+          after={
+            <Switch
+              variant="Primary"
+              value={pushToTalk}
+              onChange={(value) => {
+                setPushToTalk(value);
+                if (!value) setIsAssigningKey(false);
+              }}
+            />
+          }
+        />
+      </SequenceCard>
+      {pushToTalk && (
+        <SequenceCard className={SequenceCardStyle} variant="SurfaceVariant" direction="Column">
+          <SettingTile
+            title="Push to Talk Keybinds"
+            description={getVoiceKeybindsDescription(isAssigningKey, pushToTalkKeys.length)}
+          >
+            <Box direction="Column" gap="200" style={{ marginTop: config.space.S200 }}>
+              {pushToTalkKeys.length > 0 && (
+                <Box wrap="Wrap" gap="200">
+                  {pushToTalkKeys.map((keyBind) => (
+                    <Chip
+                      key={keyBind}
+                      variant="Secondary"
+                      radii="Pill"
+                      after={<Icon src={Icons.Cross} size="100" />}
+                      onClick={() => removeBind(keyBind)}
+                      aria-label={`Remove ${getPushKeyLabel(keyBind)} keybind`}
+                    >
+                      <Text size="T200">{getPushKeyLabel(keyBind)}</Text>
+                    </Chip>
+                  ))}
+                </Box>
+              )}
+              <Box>
+                <Button
+                  size="300"
+                  variant={isAssigningKey ? 'Primary' : 'Secondary'}
+                  outlined
+                  fill="Soft"
+                  radii="300"
+                  onClick={() => setIsAssigningKey((value) => !value)}
+                  aria-pressed={isAssigningKey}
+                >
+                  <Text size="T300">{isAssigningKey ? 'Press a Key' : 'Add Keybind'}</Text>
+                </Button>
+              </Box>
+            </Box>
+          </SettingTile>
+        </SequenceCard>
+      )}
+    </Box>
+  );
+}
+
 function GifPicker() {
   const [klipyApiKey, setKlipyApiKey] = useSetting(settingsAtom, 'klipyApiKey');
   const [showKey, setShowKey] = useState(false);
@@ -1037,6 +1152,7 @@ type GeneralProps = {
   requestClose: () => void;
 };
 export function General({ requestClose }: GeneralProps) {
+  const mobile = useScreenSize() === ScreenSize.Mobile;
   return (
     <Page>
       <PageHeader outlined={false}>
@@ -1061,6 +1177,7 @@ export function General({ requestClose }: GeneralProps) {
               <DateAndTime />
               <Editor />
               <Messages />
+              {!mobile && <Voice />}
               <GifPicker />
             </Box>
           </PageContent>
