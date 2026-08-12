@@ -369,6 +369,36 @@ function CallUtils({ embed }: { embed: CallEmbed }) {
   return null;
 }
 
+let pushToTalkAudioContext: AudioContext | undefined;
+
+function playPushToTalkCue(active: boolean) {
+  const AudioContextClass = window.AudioContext;
+  if (!AudioContextClass) return;
+
+  const audioContext = pushToTalkAudioContext ?? new AudioContextClass();
+  pushToTalkAudioContext = audioContext;
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => undefined);
+
+  const startAt = audioContext.currentTime;
+  const frequencies = active ? [440, 660] : [440, 330];
+  frequencies.forEach((frequency, index) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const noteStart = startAt + index * 0.055;
+    const noteEnd = noteStart + 0.075;
+
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(frequency, noteStart);
+    gain.gain.setValueAtTime(0, noteStart);
+    gain.gain.linearRampToValueAtTime(0.08, noteStart + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, noteEnd);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(noteStart);
+    oscillator.stop(noteEnd);
+  });
+}
+
 // Bound keys/mouse buttons must be captured app-wide, not just while a call is
 // joined - otherwise e.g. a mouse button bound to push-to-talk still triggers
 // the browser/webview's native "navigate back" action whenever no call is active.
@@ -400,15 +430,23 @@ function usePushToTalk(control: CallControl | undefined) {
     };
 
     const setBindPressed = (code: string, pressed: boolean) => {
+      const wasPressed = pressedBindsRef.current.size > 0;
       if (pressed) pressedBindsRef.current.add(code);
       else pressedBindsRef.current.delete(code);
-      controlRef.current?.setPushToTalkKeyPressed(pressedBindsRef.current.size > 0);
+      const isPressed = pressedBindsRef.current.size > 0;
+      const currentControl = controlRef.current;
+      currentControl?.setPushToTalkKeyPressed(isPressed);
+      if (currentControl?.microphone && wasPressed !== isPressed) {
+        playPushToTalkCue(isPressed);
+      }
     };
 
     const releaseAll = () => {
       if (pressedBindsRef.current.size === 0) return;
       pressedBindsRef.current.clear();
-      controlRef.current?.setPushToTalkKeyPressed(false);
+      const currentControl = controlRef.current;
+      currentControl?.setPushToTalkKeyPressed(false);
+      if (currentControl?.microphone) playPushToTalkCue(false);
     };
 
     const handleKeyDown = (evt: KeyboardEvent) => {
