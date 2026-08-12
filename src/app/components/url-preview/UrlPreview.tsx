@@ -7,6 +7,10 @@ export const UrlPreview = as<'div'>(({ className, ...props }, ref) => (
   <Box shrink="No" className={classNames(css.UrlPreview, className)} {...props} ref={ref} />
 ));
 
+export const UrlPreviewAccent = as<'div'>(({ className, ...props }, ref) => (
+  <div className={classNames(css.UrlPreviewAccent, className)} {...props} ref={ref} />
+));
+
 export const UrlPreviewImg = as<'img'>(({ className, alt, ...props }, ref) => (
   <img className={classNames(css.UrlPreviewImg, className)} alt={alt} {...props} ref={ref} />
 ));

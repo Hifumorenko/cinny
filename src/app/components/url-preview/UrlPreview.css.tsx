@@ -5,23 +5,33 @@ export const UrlPreview = style([
   DefaultReset,
   {
     width: toRem(400),
-    minHeight: toRem(102),
+    maxWidth: '100%',
+    display: 'flex',
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     borderRadius: config.radii.R300,
     overflow: 'hidden',
+  },
+]);
+
+export const UrlPreviewAccent = style([
+  DefaultReset,
+  {
+    width: toRem(4),
+    flexShrink: 0,
+    backgroundColor: color.Success.Main,
   },
 ]);
 
 export const UrlPreviewImg = style([
   DefaultReset,
   {
-    width: toRem(100),
-    height: toRem(100),
+    display: 'block',
+    width: '100%',
+    maxHeight: toRem(300),
     objectFit: 'cover',
     objectPosition: 'center',
-    flexShrink: 0,
+    borderRadius: config.radii.R300,
     overflow: 'hidden',
     cursor: 'pointer',
 
@@ -34,9 +44,13 @@ export const UrlPreviewImg = style([
 export const UrlPreviewContent = style([
   DefaultReset,
   {
-    padding: config.space.S200,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    padding: `${config.space.S200} ${config.space.S400} ${config.space.S400} ${config.space.S300}`,
   },
 ]);
+
+export const UrlPreviewTitle = style([DefaultReset, { color: color.Success.Main }]);
 
 export const UrlPreviewDescription = style([
   DefaultReset,

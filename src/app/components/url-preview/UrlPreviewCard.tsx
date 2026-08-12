@@ -1,22 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { IPreviewUrlResponse } from 'matrix-js-sdk';
-import { Box, Icon, IconButton, Icons, Scroll, Spinner, Text, as, color, config } from 'folds';
+import { Box, Icon, IconButton, Icons, Scroll, Spinner, Text, as, config } from 'folds';
 import { ImageOverlay } from '../ImageOverlay';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { UrlPreview, UrlPreviewContent, UrlPreviewDescription, UrlPreviewImg } from './UrlPreview';
+import {
+  UrlPreview,
+  UrlPreviewAccent,
+  UrlPreviewContent,
+  UrlPreviewDescription,
+  UrlPreviewImg,
+} from './UrlPreview';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
 } from '../../hooks/useIntersectionObserver';
 import * as css from './UrlPreviewCard.css';
+import * as previewCss from './UrlPreview.css';
 import { tryDecodeURIComponent } from '../../utils/dom';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { ImageViewer } from '../image-viewer';
 import { onEnterOrSpace } from '../../utils/keyboard';
-
-const linkStyles = { color: color.Success.Main };
 
 export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
   ({ url, ts, ...props }, ref) => {
@@ -38,8 +43,8 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
         mx,
         prev['og:image'] || '',
         useAuthentication,
-        256,
-        256,
+        800,
+        600,
         'scale',
         false
       );
@@ -48,16 +53,7 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
 
       return (
         <>
-          {thumbUrl && (
-            <UrlPreviewImg
-              src={thumbUrl}
-              alt={prev['og:title']}
-              title={prev['og:title']}
-              tabIndex={0}
-              onKeyDown={(evt) => onEnterOrSpace(() => setViewer(true))(evt)}
-              onClick={() => setViewer(true)}
-            />
-          )}
+          <UrlPreviewAccent />
           {imgUrl && (
             <ImageOverlay
               src={imgUrl}
@@ -71,7 +67,6 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
           )}
           <UrlPreviewContent>
             <Text
-              style={linkStyles}
               truncate
               as="a"
               href={url}
@@ -80,22 +75,41 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
               size="T200"
               priority="300"
             >
-              {typeof prev['og:site_name'] === 'string' && `${prev['og:site_name']} | `}
-              {tryDecodeURIComponent(url)}
+              {typeof prev['og:site_name'] === 'string'
+                ? prev['og:site_name']
+                : tryDecodeURIComponent(url)}
             </Text>
-            <Text truncate priority="400">
-              <b>{prev['og:title']}</b>
+            <Text
+              className={previewCss.UrlPreviewTitle}
+              as="a"
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <b>{prev['og:title'] || tryDecodeURIComponent(url)}</b>
             </Text>
-            <Text size="T200" priority="300">
-              <UrlPreviewDescription>{prev['og:description']}</UrlPreviewDescription>
-            </Text>
+            {prev['og:description'] && (
+              <Text size="T200" priority="300">
+                <UrlPreviewDescription>{prev['og:description']}</UrlPreviewDescription>
+              </Text>
+            )}
+            {thumbUrl && (
+              <UrlPreviewImg
+                src={thumbUrl}
+                alt={prev['og:title']}
+                title={prev['og:title']}
+                tabIndex={0}
+                onKeyDown={(evt) => onEnterOrSpace(() => setViewer(true))(evt)}
+                onClick={() => setViewer(true)}
+              />
+            )}
           </UrlPreviewContent>
         </>
       );
     };
 
     return (
-      <UrlPreview {...props} ref={ref}>
+      <UrlPreview {...props} ref={ref} style={{ minHeight: config.space.S700 }}>
         {previewStatus.status === AsyncStatus.Success ? (
           renderContent(previewStatus.data)
         ) : (
