@@ -5,3 +5,4 @@ export * from './YouTubePreviewCard';
 export * from './PixivPreviewCard';
 export * from './InstagramPreviewCard';
 export * from './TikTokPreviewCard';
+export * from './RedditPreviewCard';

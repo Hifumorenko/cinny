@@ -13,6 +13,8 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
   - _Control:_ video posts play directly in Cinny's native media player; spoilered media stays blurred until revealed.
 - **TikTok preview cards** — TikTok video and share links are rewritten through tnktok for rich caption, thumbnail, and direct-video metadata.
   - _Control:_ videos play directly in Cinny's native media player; spoilered media stays blurred until revealed.
+- **Reddit preview cards** — Reddit post, share, and redd.it links are rewritten through vxReddit (with Rxddit and Reddit fallbacks) for rich title, description, image, and direct-video metadata.
+  - _Control:_ videos play directly in Cinny's native media player; spoilered media stays blurred until revealed.
 - **YouTube embeds** — YouTube links expand into an inline, playable embed.
   - _Control:_ click the embed to play it in place; no extra tab needed.
 - **GIF embeds** — GIF links (e.g. Tenor/Giphy) expand into an inline, animated preview.
