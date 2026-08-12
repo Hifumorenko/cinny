@@ -28,6 +28,7 @@ import {
 import {
   PixivPreviewCard,
   InstagramPreviewCard,
+  TikTokPreviewCard,
   TweetPreviewCard,
   UrlPreviewCard,
   UrlPreviewHolder,
@@ -42,6 +43,7 @@ import { parseTwitterStatusUrl, testTwitterStatusUrl } from '../plugins/fixupx';
 import { parsePixivArtworkUrl, testPixivArtworkUrl } from '../plugins/phixiv';
 import { parseYouTubeUrl, testYouTubeUrl } from '../plugins/youtube';
 import { parseInstagramPostUrl, testInstagramPostUrl } from '../plugins/instagram';
+import { parseTikTokUrl, testTikTokUrl } from '../plugins/tiktok';
 import { MAX_GIF_EMBEDS, testGifUrl } from '../plugins/gif';
 import { getSpoiledUrls } from '../utils/dom';
 import { getMemberAvatarMxc, trimReplyFromBody } from '../utils/room';
@@ -133,6 +135,7 @@ export function RenderMessageContent({
     const youtubeUrls = filteredUrls.filter(testYouTubeUrl);
     const pixivUrls = filteredUrls.filter(testPixivArtworkUrl);
     const instagramUrls = filteredUrls.filter(testInstagramPostUrl);
+    const tikTokUrls = filteredUrls.filter(testTikTokUrl);
     // A message stuffed with gif links falls back to a normal preview for all
     // of them instead of embedding any, so the timeline is not flooded.
     const gifUrls = filteredUrls.filter(testGifUrl);
@@ -143,6 +146,7 @@ export function RenderMessageContent({
         !testYouTubeUrl(url) &&
         !testPixivArtworkUrl(url) &&
         !testInstagramPostUrl(url) &&
+        !testTikTokUrl(url) &&
         !embedGifUrls.includes(url)
     );
 
@@ -171,6 +175,11 @@ export function RenderMessageContent({
     );
     const spoiledInstagramIds = new Set(
       Array.from(spoiledUrls, (spoiledUrl) => parseInstagramPostUrl(spoiledUrl)?.id).filter(
+        (id) => id !== undefined
+      )
+    );
+    const spoiledTikTokIds = new Set(
+      Array.from(spoiledUrls, (spoiledUrl) => parseTikTokUrl(spoiledUrl)?.id).filter(
         (id) => id !== undefined
       )
     );
@@ -205,6 +214,14 @@ export function RenderMessageContent({
             url={url}
             ts={ts}
             spoiler={spoiledInstagramIds.has(parseInstagramPostUrl(url)?.id ?? '')}
+          />
+        ))}
+        {tikTokUrls.map((url) => (
+          <TikTokPreviewCard
+            key={url}
+            url={url}
+            ts={ts}
+            spoiler={spoiledTikTokIds.has(parseTikTokUrl(url)?.id ?? '')}
           />
         ))}
         {/* A gif has no id to canonicalize onto, so its own url is matched verbatim. */}

@@ -11,6 +11,8 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
   - _Control:_ download from the media viewer saves the full original file — the artwork's own `{id}_p0.png`/`.jpg`, under that name — rather than the 1200px copy the card displays. Pixiv's image host serves originals only to requests carrying a pixiv.net `Referer` and sends no CORS headers, neither of which a browser can supply, so this goes through pixiv.re (keyed on the artwork id, byte-identical output). It is the one action that fetches from outside your homeserver; if it is unavailable the download falls back to the displayed copy and logs a warning.
 - **Instagram preview cards** — post, reel, and Instagram TV links are rewritten through UUInstagram for rich caption, image, and direct-video metadata.
   - _Control:_ video posts play directly in Cinny's native media player; spoilered media stays blurred until revealed.
+- **TikTok preview cards** — TikTok video and share links are rewritten through tnktok for rich caption, thumbnail, and direct-video metadata.
+  - _Control:_ videos play directly in Cinny's native media player; spoilered media stays blurred until revealed.
 - **YouTube embeds** — YouTube links expand into an inline, playable embed.
   - _Control:_ click the embed to play it in place; no extra tab needed.
 - **GIF embeds** — GIF links (e.g. Tenor/Giphy) expand into an inline, animated preview.
