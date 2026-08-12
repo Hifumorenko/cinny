@@ -1,5 +1,11 @@
 /* eslint-disable jsx-a11y/media-has-caption */
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { invoke, isTauri } from '@tauri-apps/api/core';
+import {
+  register as registerGlobalShortcut,
+  unregister as unregisterGlobalShortcut,
+} from '@tauri-apps/plugin-global-shortcut';
+import { listen } from '@tauri-apps/api/event';
 import { useAtomValue, useSetAtom } from 'jotai';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -402,11 +408,44 @@ function playPushToTalkCue(active: boolean) {
 // Bound keys/mouse buttons must be captured app-wide, not just while a call is
 // joined - otherwise e.g. a mouse button bound to push-to-talk still triggers
 // the browser/webview's native "navigate back" action whenever no call is active.
+function browserCodeToGlobalShortcut(code: string): string | undefined {
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (/^F(?:[1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+
+  return {
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    Backspace: 'Backspace',
+    Enter: 'Enter',
+    Escape: 'Escape',
+    Space: 'Space',
+    Tab: 'Tab',
+  }[code];
+}
+
+function isDesktopApp(): boolean {
+  if (isTauri()) return true;
+
+  // Release assets are deliberately served by tauri-plugin-localhost and the
+  // main webview is therefore classified as an external URL. Tauri's injected
+  // `isTauri` marker is not reliable for that webview, although IPC is enabled
+  // for this exact origin in the desktop capability.
+  return (
+    window.location.protocol === 'http:' &&
+    window.location.hostname === 'localhost' &&
+    window.location.port === '44548'
+  );
+}
+
 function usePushToTalk(control: CallControl | undefined) {
   const screenSize = useScreenSizeContext();
   const [pushToTalk] = useSetting(settingsAtom, 'pushToTalk');
   const [pushToTalkKeys] = useSetting(settingsAtom, 'pushToTalkKeys');
   const effectivePushToTalk = screenSize !== ScreenSize.Mobile && pushToTalk;
+  const desktop = isDesktopApp();
 
   const pressedBindsRef = useRef<Set<string>>(new Set());
   const controlRef = useRef(control);
@@ -485,15 +524,41 @@ function usePushToTalk(control: CallControl | undefined) {
     };
 
     const handleVisibilityChange = () => {
-      if (document.hidden) releaseAll();
+      if (document.hidden && !desktop) releaseAll();
     };
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const globalShortcuts: string[] = [];
+    if (desktop) {
+      listen<{ code: string; pressed: boolean }>('push-to-talk-input', ({ payload }) => {
+        if (!pushToTalkKeys.includes(payload.code)) return;
+        setBindPressed(payload.code, payload.pressed);
+      }).then((remove) => {
+        if (disposed) remove();
+        else unlisten = remove;
+      });
+      invoke('set_push_to_talk_binds', { binds: pushToTalkKeys }).catch(() => undefined);
+
+      // Use the operating system's registered-hotkey path for keyboard binds.
+      // Unlike WebView keyboard events, these continue to deliver both press and
+      // release events when a packaged application's window is not focused.
+      pushToTalkKeys.forEach((code) => {
+        const shortcut = browserCodeToGlobalShortcut(code);
+        if (!shortcut) return;
+        globalShortcuts.push(shortcut);
+        registerGlobalShortcut(shortcut, (event) => {
+          setBindPressed(code, event.state === 'Pressed');
+        }).catch(() => undefined);
+      });
+    }
 
     window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp, true);
     window.addEventListener('mousedown', handleMouseDown, true);
     window.addEventListener('mouseup', handleMouseUp, true);
     window.addEventListener('auxclick', handleAuxClick, true);
-    window.addEventListener('blur', releaseAll);
+    if (!desktop) window.addEventListener('blur', releaseAll);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
@@ -502,11 +567,17 @@ function usePushToTalk(control: CallControl | undefined) {
       window.removeEventListener('mousedown', handleMouseDown, true);
       window.removeEventListener('mouseup', handleMouseUp, true);
       window.removeEventListener('auxclick', handleAuxClick, true);
-      window.removeEventListener('blur', releaseAll);
+      disposed = true;
+      unlisten?.();
+      globalShortcuts.forEach((shortcut) => {
+        unregisterGlobalShortcut(shortcut).catch(() => undefined);
+      });
+      if (desktop) invoke('set_push_to_talk_binds', { binds: [] }).catch(() => undefined);
+      else window.removeEventListener('blur', releaseAll);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseAll();
     };
-  }, [effectivePushToTalk, pushToTalkKeys]);
+  }, [desktop, effectivePushToTalk, pushToTalkKeys]);
 }
 
 type CallEmbedProviderProps = {
