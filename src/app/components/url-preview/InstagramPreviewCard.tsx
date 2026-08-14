@@ -18,6 +18,7 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
     const useAuthentication = useMediaAuthentication();
     const link = useMemo(() => parseInstagramPostUrl(url), [url]);
     const [blurred, setBlurred] = useState(spoiler ?? false);
+    const [videoFailed, setVideoFailed] = useState(false);
     const previewUrl = link ? getInstagramPreviewUrl(link) : undefined;
     const [previewState] = useAsyncCallbackValue<IPreviewUrlResponse, unknown>(
       useCallback(
@@ -26,6 +27,19 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
             ? mx.getUrlPreview(previewUrl, ts)
             : Promise.reject(new Error('Not an Instagram url')),
         [mx, previewUrl, ts]
+      )
+    );
+    const needsFallbackImage =
+      link &&
+      previewState.status === AsyncStatus.Success &&
+      typeof previewState.data['og:image'] !== 'string';
+    const [fallbackPreviewState] = useAsyncCallbackValue<IPreviewUrlResponse, unknown>(
+      useCallback(
+        () =>
+          needsFallbackImage && link
+            ? mx.getUrlPreview(link.url, ts)
+            : Promise.reject(new Error('Instagram fallback image is not needed')),
+        [link, mx, needsFallbackImage, ts]
       )
     );
 
@@ -46,7 +60,9 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
     }
 
     const preview = previewState.data;
-    const mxcImage = preview['og:image'];
+    const fallbackPreview =
+      fallbackPreviewState.status === AsyncStatus.Success ? fallbackPreviewState.data : undefined;
+    const mxcImage = preview['og:image'] ?? fallbackPreview?.['og:image'];
     const imageUrl = mxcImage
       ? mxcUrlToHttp(mx, mxcImage, useAuthentication, 800, 1000, 'scale', false) ?? undefined
       : undefined;
@@ -56,6 +72,7 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
       previewUrl && typeof rawVideoUrl === 'string'
         ? new URL(rawVideoUrl, previewUrl).toString()
         : undefined;
+    const playableVideoUrl = videoFailed ? undefined : videoUrl;
 
     return (
       <Box {...props} ref={ref} className={css.InstagramPreview}>
@@ -79,15 +96,20 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
               <UrlPreviewDescription>{preview['og:description']}</UrlPreviewDescription>
             </Text>
           )}
-          {(videoUrl || imageUrl) && (
+          {(playableVideoUrl || imageUrl) && (
             <div className={css.InstagramMediaFrame}>
-              {videoUrl ? (
+              {playableVideoUrl ? (
                 <Video
                   className={classNames(css.InstagramVideo, blurred && contentCss.Blur)}
-                  src={videoUrl}
+                  src={playableVideoUrl}
                   poster={imageUrl}
                   controls={!blurred}
                   preload="metadata"
+                  onError={() => setVideoFailed(true)}
+                  onLoadedMetadata={(event) => {
+                    const { duration } = event.currentTarget;
+                    if (!Number.isFinite(duration) || duration <= 0) setVideoFailed(true);
+                  }}
                 />
               ) : (
                 <img
@@ -115,6 +137,13 @@ export const InstagramPreviewCard = as<'div', { url: string; ts: number; spoiler
                 </Box>
               )}
             </div>
+          )}
+          {videoFailed && (
+            <Text size="T200" priority="300" role="status">
+              {imageUrl
+                ? 'Video could not be loaded. Showing the thumbnail instead.'
+                : 'Video could not be loaded. Open the post on Instagram to watch it.'}
+            </Text>
           )}
         </div>
       </Box>
