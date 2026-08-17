@@ -79,6 +79,14 @@ export const YouTubeMediaFrame = style([
   },
 ]);
 
+/** Lets Shorts fill the card while retaining their portrait shape. */
+export const YouTubeShortsMediaFrame = style([
+  DefaultReset,
+  {
+    aspectRatio: '9 / 16',
+  },
+]);
+
 export const YouTubeThumbnail = style([
   DefaultReset,
   {

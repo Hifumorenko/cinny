@@ -17,6 +17,7 @@ Everything added on top of upstream Cinny since `6bccd5a` (release v4.12.6).
   - _Control:_ videos play directly in Cinny's native media player; spoilered media stays blurred until revealed.
 - **YouTube embeds** — YouTube links expand into an inline, playable embed.
   - _Control:_ click the embed to play it in place; no extra tab needed.
+  - YouTube Shorts links use a full-width portrait player instead of being cropped into a landscape frame.
 - **GIF embeds** — GIF links (e.g. Tenor/Giphy) expand into an inline, animated preview.
   - _Control:_ click opens the full media viewer; middle-click (or ctrl/cmd-click) opens it directly in the browser instead.
 - **Spoiler support for embeds** — YouTube and GIF embeds can be marked as spoilers, same as image attachments, blurring them until clicked.

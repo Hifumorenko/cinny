@@ -24,9 +24,11 @@ const VIDEO_ID_REG = /^[a-zA-Z0-9_-]{11}$/;
 export type YouTubeLink = {
   /** Video id, as used by the thumbnail, embed and oEmbed urls. */
   id: string;
+  /** Whether the original link used YouTube's portrait Shorts format. */
+  short: boolean;
   /** Start offset in seconds, when the link carried one. */
   start?: number;
-  /** Canonical link, rewritten onto a plain watch url. */
+  /** Canonical link, retaining the Shorts format where appropriate. */
   url: string;
 };
 
@@ -55,6 +57,7 @@ export const parseYouTubeUrl = (url: string): YouTubeLink | undefined => {
   if (!YOUTUBE_HOSTS.has(host)) return undefined;
 
   let id: string | undefined;
+  let short = false;
   if (host === 'youtu.be') {
     [id] = parsed.pathname.slice(1).split('/');
   } else if (parsed.pathname === '/watch') {
@@ -62,6 +65,7 @@ export const parseYouTubeUrl = (url: string): YouTubeLink | undefined => {
   } else {
     const match = parsed.pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/);
     id = match?.[1];
+    short = parsed.pathname.startsWith('/shorts/');
   }
 
   id = id?.split(/[&?]/)[0];
@@ -73,8 +77,11 @@ export const parseYouTubeUrl = (url: string): YouTubeLink | undefined => {
 
   return {
     id,
+    short,
     start,
-    url: `https://www.youtube.com/watch?v=${id}${start ? `&t=${start}s` : ''}`,
+    url: short
+      ? `https://www.youtube.com/shorts/${id}${start ? `?t=${start}s` : ''}`
+      : `https://www.youtube.com/watch?v=${id}${start ? `&t=${start}s` : ''}`,
   };
 };
 

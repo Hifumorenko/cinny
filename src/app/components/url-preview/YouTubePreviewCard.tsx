@@ -64,7 +64,9 @@ export const YouTubePreviewCard = as<'div', { url: string; spoiler?: boolean }>(
             </Text>
           )}
 
-          <div className={css.YouTubeMediaFrame}>
+          <div
+            className={classNames(css.YouTubeMediaFrame, link.short && css.YouTubeShortsMediaFrame)}
+          >
             {playing ? (
               // eslint-disable-next-line jsx-a11y/iframe-has-title
               <iframe
