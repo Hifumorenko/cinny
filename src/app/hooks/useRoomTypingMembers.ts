@@ -7,8 +7,7 @@ import {
   roomIdToTypingMembersAtom,
 } from '../state/typingMembers';
 
-const typingReceiptEqual = (a: TypingReceipt, b: TypingReceipt): boolean =>
-  a.userId === b.userId && a.ts === b.ts;
+const typingReceiptEqual = (a: TypingReceipt, b: TypingReceipt): boolean => a.userId === b.userId;
 
 const equalTypingMembers = (x: TypingReceipt[], y: TypingReceipt[]): boolean => {
   if (x.length !== y.length) return false;
