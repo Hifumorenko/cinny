@@ -121,16 +121,8 @@ export class CallControl extends EventEmitter implements CallControlState {
     return this.microphone;
   }
 
-  private setElementCallAudioEnabled(enabled: boolean): void {
-    const callWindow = this.iframe.contentWindow as
-      | (Window & { controls?: { setAudioEnabled?: (value: boolean) => void } })
-      | null;
-    callWindow?.controls?.setAudioEnabled?.(enabled);
-  }
-
   public setPushToTalk(enabled: boolean) {
     this.pushToTalk = enabled;
-    this.setElementCallAudioEnabled(this.effectiveAudioEnabled);
     this.setMediaState({
       audio_enabled: this.effectiveAudioEnabled,
       video_enabled: this.video,
@@ -142,7 +134,6 @@ export class CallControl extends EventEmitter implements CallControlState {
     if (this.pushToTalkKeyPressed === pressed) return;
     this.pushToTalkKeyPressed = pressed;
     if (this.pushToTalk) {
-      this.setElementCallAudioEnabled(this.effectiveAudioEnabled);
       this.setMediaState({
         audio_enabled: this.effectiveAudioEnabled,
         video_enabled: this.video,
