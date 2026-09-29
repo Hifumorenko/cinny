@@ -25,6 +25,7 @@ export function SearchInput({
   return (
     <Input
       ref={inputRef}
+      value={query ?? ''}
       variant="SurfaceVariant"
       size="400"
       placeholder={allowTextCustomEmoji ? 'Search or Text Reaction ' : 'Search'}

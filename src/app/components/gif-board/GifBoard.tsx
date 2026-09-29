@@ -12,7 +12,6 @@ import { Box, Icon, Icons, Input, Scroll, Spinner, Text, color } from 'folds';
 import { GifFavoriteButton } from './GifFavoriteButton';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
-import { useDebounce } from '../../hooks/useDebounce';
 import { mobileOrTablet } from '../../utils/user-agent';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
@@ -80,6 +79,8 @@ function GifTile({ gif, favorite, onSelect, onToggleFavorite }: GifTileProps) {
 type GifContentProps = {
   /** Rendered above the search input (e.g. the picker tabs). */
   header?: ReactNode;
+  query: string;
+  onQueryChange: (query: string) => void;
   onGifSelect: (gif: KlipyGif) => void;
 };
 
@@ -89,7 +90,7 @@ type GifContentProps = {
  * favorites, nothing else. Meant to live inside the emoji/sticker board, which
  * supplies the surrounding FocusTrap and tabs.
  */
-export function GifContent({ header, onGifSelect }: GifContentProps) {
+export function GifContent({ header, query, onQueryChange, onGifSelect }: GifContentProps) {
   const mx = useMatrixClient();
   const [apiKey] = useSetting(settingsAtom, 'klipyApiKey');
   const customerId = useMemo(() => getKlipyCustomerId(), []);
@@ -98,7 +99,7 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
   const favoriteIds = useGifFavoriteIds(favorites);
   const toggleFavorite = useToggleGifFavorite(mx);
 
-  const [query, setQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(query);
   const [gifs, setGifs] = useState<KlipyGif[]>([]);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
@@ -106,7 +107,7 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
 
   // With no query the picker shows the user's favorites (never a trending
   // feed); search results only appear once something is typed.
-  const searching = query.trim().length > 0;
+  const searching = searchQuery.trim().length > 0;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController>();
@@ -146,30 +147,30 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
     [apiKey, customerId]
   );
 
-  // Run a fresh search from the first page whenever the query changes.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setSearchQuery(query), 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [query]);
+
+  // Run a fresh search from the first page whenever the debounced query changes.
   useEffect(() => {
     if (!searching) {
       setGifs([]);
       setState('idle');
       return;
     }
-    load(query, 1);
+    load(searchQuery, 1);
     scrollRef.current?.scrollTo(0, 0);
-  }, [query, searching, load]);
-
-  const applyQuery = useDebounce(
-    useCallback((term: string) => setQuery(term), []),
-    { wait: 400 }
-  );
+  }, [searchQuery, searching, load]);
 
   const handleSearchChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
-    applyQuery(evt.target.value);
+    onQueryChange(evt.target.value);
   };
 
   const loadMore = useCallback(() => {
     if (!searching || state === 'loading' || !hasNext) return;
-    load(query, page + 1);
-  }, [searching, state, hasNext, load, query, page]);
+    load(searchQuery, page + 1);
+  }, [searching, state, hasNext, load, searchQuery, page]);
 
   const handleScroll: UIEventHandler<HTMLDivElement> = (evt) => {
     const el = evt.currentTarget;
@@ -237,6 +238,7 @@ export function GifContent({ header, onGifSelect }: GifContentProps) {
           size="400"
           placeholder="Search Klipy"
           maxLength={100}
+          value={query}
           after={<Icon src={Icons.Search} size="50" />}
           onChange={handleSearchChange}
           autoFocus={!mobileOrTablet()}

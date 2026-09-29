@@ -9,6 +9,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { Box, config, Icons, Scroll, toRem } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -26,7 +27,6 @@ import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import { isUserId, mxcUrlToHttp } from '../../utils/matrix';
 import { editableActiveElement, targetFromEvent } from '../../utils/dom';
 import { useAsyncSearch, UseAsyncSearchOptions } from '../../hooks/useAsyncSearch';
-import { useDebounce } from '../../hooks/useDebounce';
 import { useThrottle } from '../../hooks/useThrottle';
 import { addRecentEmoji } from '../../plugins/recent-emoji';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -395,6 +395,7 @@ export function EmojiBoard({
   // with a tooltip pointing to Settings.
   const showGif = Boolean(onGifSelect);
   const gifEnabled = klipyApiKey.length > 0;
+  const [query, setQuery] = useState('');
 
   const emojiTab = tab === EmojiBoardTab.Emoji;
   const usage = emojiTab ? ImageUsage.Emoticon : ImageUsage.Sticker;
@@ -425,17 +426,18 @@ export function EmojiBoard({
 
   const searchedItems = result?.items.slice(0, 100);
 
-  const handleOnChange: ChangeEventHandler<HTMLInputElement> = useDebounce(
-    useCallback(
-      (evt) => {
-        const term = evt.target.value;
-        if (term) search(term);
-        else resetSearch();
-      },
-      [search, resetSearch]
-    ),
-    { wait: 200 }
-  );
+  const handleOnChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
+    setQuery(evt.target.value);
+  };
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      if (query) search(query);
+      else resetSearch();
+    }, 200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [query, search, resetSearch]);
 
   const contentScrollRef = useRef<HTMLDivElement>(null);
   const virtualBaseRef = useRef<HTMLDivElement>(null);
@@ -601,6 +603,8 @@ export function EmojiBoard({
           {tab === EmojiBoardTab.Gif && onGifSelect ? (
             <GifContent
               header={tabsNode}
+              query={query}
+              onQueryChange={setQuery}
               onGifSelect={(gif) => {
                 onGifSelect(gif);
                 requestClose();
@@ -612,8 +616,7 @@ export function EmojiBoard({
                 <Box direction="Column" gap="200">
                   {tabsNode}
                   <SearchInput
-                    key={tab}
-                    query={result?.query}
+                    query={query}
                     onChange={handleOnChange}
                     allowTextCustomEmoji={allowTextCustomEmoji}
                     onTextCustomEmojiSelect={handleTextCustomEmojiSelect}
