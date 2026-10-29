@@ -128,7 +128,7 @@ function validMediaRequest(url: string, baseUrl: string): boolean {
  * requests without one, forwarding the original headers so that ranged
  * requests — and therefore seeking — keep working.
  */
-const REFERER_FREE_HOSTS = ['video.twimg.com'];
+const REFERER_FREE_HOSTS = ['pbs.twimg.com', 'video.twimg.com'];
 
 function refererFreeHost(url: string): boolean {
   try {

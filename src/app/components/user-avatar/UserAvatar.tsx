@@ -9,9 +9,17 @@ type UserAvatarProps = {
   userId: string;
   src?: string;
   alt?: string;
+  referrerPolicy?: React.HTMLAttributeReferrerPolicy;
   renderFallback: () => ReactNode;
 };
-export function UserAvatar({ className, userId, src, alt, renderFallback }: UserAvatarProps) {
+export function UserAvatar({
+  className,
+  userId,
+  src,
+  alt,
+  referrerPolicy,
+  renderFallback,
+}: UserAvatarProps) {
   const [error, setError] = useState(false);
 
   const handleLoad: ReactEventHandler<HTMLImageElement> = (evt) => {
@@ -34,6 +42,7 @@ export function UserAvatar({ className, userId, src, alt, renderFallback }: User
       className={classNames(css.UserAvatar, className)}
       src={src}
       alt={alt}
+      referrerPolicy={referrerPolicy}
       onError={() => setError(true)}
       onLoad={handleLoad}
       draggable={false}

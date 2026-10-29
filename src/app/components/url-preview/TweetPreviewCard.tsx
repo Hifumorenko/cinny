@@ -89,6 +89,7 @@ function TweetAuthorLine({ author, size }: { author: FixupxTweet['author']; size
           src={author.avatar_url}
           alt=""
           loading="lazy"
+          referrerPolicy="no-referrer"
         />
       )}
       <Text size="T300" truncate>
@@ -244,6 +245,7 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
                       src={src}
                       alt={(photo && item.altText) || (photo ? 'Attachment' : 'GIF')}
                       loading="lazy"
+                      referrerPolicy="no-referrer"
                       // Fall back to the mp4 when the transcode is unavailable.
                       onError={
                         photo ? undefined : () => setGifFailed((failed) => [...failed, item.url])
@@ -288,6 +290,7 @@ function TweetMedia({ media, description, spoiler, author, timestamp, postUrl }:
               senderName={`${author.name} (@${author.screen_name})`}
               senderUrl={getXProfileUrl(author.screen_name)}
               avatarUrl={author.avatar_url ?? undefined}
+              referrerPolicy="no-referrer"
               timestamp={timestamp}
               openUrl={postUrl}
               onPrev={onPrev}

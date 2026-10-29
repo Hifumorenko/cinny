@@ -33,6 +33,7 @@ export type ImageViewerProps = {
   /** Makes the sender name a link, e.g. to a tweet author's profile. */
   senderUrl?: string;
   avatarUrl?: string;
+  referrerPolicy?: React.HTMLAttributeReferrerPolicy;
   timestamp?: number;
   /** What "Open in New Tab" opens, when it should not be `downloadSrc`/`src` — e.g. the tweet a photo came from, rather than the bare image file. */
   openUrl?: string;
@@ -115,6 +116,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
       senderName,
       senderUrl,
       avatarUrl,
+      referrerPolicy,
       timestamp,
       openUrl,
       canOpenExternally = true,
@@ -311,6 +313,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
                 userId={senderId ?? senderName}
                 src={avatarUrl}
                 alt={senderName}
+                referrerPolicy={referrerPolicy}
                 renderFallback={() => <Icon size="200" src={Icons.User} filled />}
               />
             </Avatar>
@@ -458,6 +461,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
             }}
             src={src}
             alt={alt}
+            referrerPolicy={referrerPolicy}
             onMouseDown={onMouseDown}
           />
         </Box>
