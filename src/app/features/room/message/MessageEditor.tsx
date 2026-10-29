@@ -54,6 +54,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getEditedEvent, getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
+import { stripTwitterUrlQueries } from '../../../plugins/fixupx';
 
 type MessageEditorProps = {
   roomId: string;
@@ -99,13 +100,17 @@ export const MessageEditor = as<'div', MessageEditorProps>(
 
     const [saveState, save] = useAsyncCallback(
       useCallback(async () => {
-        const plainText = toPlainText(editor.children, isMarkdown).trim();
-        const customHtml = trimCustomHtml(
-          toMatrixCustomHTML(editor.children, {
-            allowTextFormatting: true,
-            allowBlockMarkdown: isMarkdown,
-            allowInlineMarkdown: isMarkdown,
-          })
+        const plainText = stripTwitterUrlQueries(
+          toPlainText(editor.children, isMarkdown).trim()
+        );
+        const customHtml = stripTwitterUrlQueries(
+          trimCustomHtml(
+            toMatrixCustomHTML(editor.children, {
+              allowTextFormatting: true,
+              allowBlockMarkdown: isMarkdown,
+              allowInlineMarkdown: isMarkdown,
+            })
+          )
         );
 
         const [prevBody, prevCustomHtml, prevMentions] = getPrevBodyAndFormattedBody();

@@ -120,6 +120,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
+import { stripTwitterUrlQueries } from '../../plugins/fixupx';
 import * as css from './RoomInput.css';
 
 interface RoomInputProps {
@@ -384,6 +385,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         sendTypingStatus(false);
         return;
       }
+
+      plainText = stripTwitterUrlQueries(plainText);
+      customHtml = stripTwitterUrlQueries(customHtml);
 
       if (plainText === '') return;
 

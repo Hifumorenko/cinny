@@ -12,6 +12,19 @@ const FIXUPX_API_BASE = 'https://api.fxtwitter.com';
 const FIXUPX_BASE = 'https://fixupx.com';
 const X_BASE = 'https://x.com';
 
+const TWITTER_URL_WITH_QUERY_REG =
+  /\bhttps?:\/\/(?:(?:www|mobile|m)\.)?(?:twitter\.com|x\.com)(?:\/[^\s<>"'?]*)?\?[^\s<>"')\]}]*/gi;
+const TRAILING_URL_PUNCTUATION_REG = /[.,;:!]+$/;
+
+/** Remove query parameters from Twitter/X URLs embedded in plain text or HTML. */
+export const stripTwitterUrlQueries = (text: string): string =>
+  text.replace(TWITTER_URL_WITH_QUERY_REG, (url) => {
+    const queryIndex = url.indexOf('?');
+    const trailingPunctuation =
+      url.slice(queryIndex + 1).match(TRAILING_URL_PUNCTUATION_REG)?.[0] ?? '';
+    return `${url.slice(0, queryIndex)}${trailingPunctuation}`;
+  });
+
 const STATUS_HOSTS = new Set([
   'twitter.com',
   'x.com',
