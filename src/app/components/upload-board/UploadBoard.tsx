@@ -1,4 +1,4 @@
-import React, { MutableRefObject, ReactNode, useImperativeHandle, useRef } from 'react';
+import React, { MutableRefObject, ReactNode, useImperativeHandle, useRef, useState } from 'react';
 import { Badge, Box, Chip, Header, Icon, Icons, Spinner, Text, as, percent } from 'folds';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
@@ -44,6 +44,7 @@ export function UploadBoardHeader({
   imperativeHandlerRef,
 }: UploadBoardHeaderProps) {
   const sendingRef = useRef(false);
+  const [sendError, setSendError] = useState(false);
   const uploads = useAtomValue(uploadFamilyObserverAtom);
 
   const isSuccess = uploads.every((upload) => upload.status === UploadStatus.Success);
@@ -63,12 +64,16 @@ export function UploadBoardHeader({
   );
 
   const handleSend = async () => {
-    if (sendingRef.current) return;
+    if (sendingRef.current || !isSuccess || uploads.length === 0) return;
     sendingRef.current = true;
-    await onSend(
-      uploads.filter((upload) => upload.status === UploadStatus.Success) as UploadSuccess[]
-    );
-    sendingRef.current = false;
+    setSendError(false);
+    try {
+      await onSend(uploads as UploadSuccess[]);
+    } catch {
+      setSendError(true);
+    } finally {
+      sendingRef.current = false;
+    }
   };
 
   useImperativeHandle(imperativeHandlerRef, () => ({
@@ -91,6 +96,7 @@ export function UploadBoardHeader({
         <Text size="H6">Files</Text>
       </Box>
       <Box className={css.UploadBoardHeaderContent} alignItems="Center" gap="100">
+        {sendError && <Text size="L400">Failed to send files. Try again.</Text>}
         {isSuccess && (
           <Chip
             as="button"

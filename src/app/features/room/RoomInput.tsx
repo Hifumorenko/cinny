@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useStore } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import { EventType, IContent, MsgType, RelationType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -120,6 +120,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { usePowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
+import { useAlive } from '../../hooks/useAlive';
 import { stripTwitterUrlQueries } from '../../plugins/fixupx';
 import * as css from './RoomInput.css';
 
@@ -132,6 +133,8 @@ interface RoomInputProps {
 export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   ({ editor, fileDropContainerRef, roomId, room }, ref) => {
     const mx = useMatrixClient();
+    const store = useStore();
+    const alive = useAlive();
     const useAuthentication = useMediaAuthentication();
     const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
@@ -308,7 +311,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       handleRemoveUpload(uploads.map((upload) => upload.file));
     };
 
-    const handleSendUpload = async (uploads: UploadSuccess[]) => {
+    const handleSendUpload = async (uploads: UploadSuccess[], caption?: IContent) => {
       const contentsPromises = uploads.map(async (upload) => {
         const fileItem = selectedFiles.find((f) => f.file === upload.file);
         if (!fileItem) throw new Error('Broken upload');
@@ -332,21 +335,39 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         }
         return getFileMsgContent(fileItem, upload.mxc, name);
       });
-      handleCancelUpload(uploads);
-      const uploadedContents = fulfilledPromiseSettledResult(
-        await Promise.allSettled(contentsPromises)
-      );
+      // Keep the files and caption available if preparing any attachment fails.
+      const uploadedContents = await Promise.all(contentsPromises);
+      if (!alive()) return false;
+      const currentFiles = store.get(roomIdToUploadItemsAtomFamily(roomId));
+      if (
+        uploads.some(
+          (upload) =>
+            currentFiles.find((item) => item.file === upload.file) !==
+            selectedFiles.find((item) => item.file === upload.file)
+        )
+      ) {
+        throw new Error('Attachments changed while preparing. Please send again.');
+      }
+      const captionedImage = uploadedContents.find((content) => content.msgtype === MsgType.Image);
+      if (caption && captionedImage) {
+        captionedImage.body = caption.body;
+        captionedImage.format = caption.format;
+        captionedImage.formatted_body = caption.formatted_body;
+        captionedImage['m.mentions'] = caption['m.mentions'];
+      }
       const relation = getReplyRelation();
       const contents = relation
         ? uploadedContents.map((content) => ({ ...content, 'm.relates_to': relation }))
         : uploadedContents;
-      if (relation) setReplyDraft(undefined);
+      if (relation) {
+        setReplyDraft((current) => (current === replyDraft ? undefined : current));
+      }
       contents.forEach((content) => mx.sendMessage(roomId, content as any));
+      handleCancelUpload(uploads);
+      return true;
     };
 
-    const submit = useCallback(() => {
-      uploadBoardHandlers.current?.handleSend();
-
+    const getTextContent = useCallback((): IContent | undefined => {
       const commandName = getBeginCommand(editor);
       let plainText = toPlainText(editor.children, isMarkdown).trim();
       let customHtml = trimCustomHtml(
@@ -383,13 +404,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         resetEditor(editor);
         resetEditorHistory(editor);
         sendTypingStatus(false);
-        return;
+        return undefined;
       }
 
       plainText = stripTwitterUrlQueries(plainText);
       customHtml = stripTwitterUrlQueries(customHtml);
 
-      if (plainText === '') return;
+      if (plainText === '') return undefined;
 
       const body = plainText;
       const formattedBody = customHtml;
@@ -415,22 +436,30 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       if (relation) {
         content['m.relates_to'] = relation;
       }
-      mx.sendMessage(roomId, content as any);
+      return content;
+    }, [mx, roomId, editor, replyDraft, sendTypingStatus, isMarkdown, commands, getReplyRelation]);
+
+    const clearText = useCallback(() => {
       resetEditor(editor);
       resetEditorHistory(editor);
-      setReplyDraft(undefined);
+      setReplyDraft((current) => (current === replyDraft ? undefined : current));
       sendTypingStatus(false);
-    }, [
-      mx,
-      roomId,
-      editor,
-      replyDraft,
-      sendTypingStatus,
-      setReplyDraft,
-      isMarkdown,
-      commands,
-      getReplyRelation,
-    ]);
+    }, [editor, setReplyDraft, replyDraft, sendTypingStatus]);
+
+    const sendText = useCallback(() => {
+      const content = getTextContent();
+      if (!content) return;
+      mx.sendMessage(roomId, content as any);
+      clearText();
+    }, [getTextContent, mx, roomId, clearText]);
+
+    const submit = useCallback(() => {
+      if (selectedFiles.length > 0) {
+        uploadBoardHandlers.current?.handleSend();
+      } else {
+        sendText();
+      }
+    }, [sendText, selectedFiles.length]);
 
     const handleKeyDown: KeyboardEventHandler = useCallback(
       (evt) => {
@@ -526,7 +555,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 open={uploadBoard}
                 onToggle={() => setUploadBoard(!uploadBoard)}
                 uploadFamilyObserverAtom={uploadFamilyObserverAtom}
-                onSend={handleSendUpload}
+                onSend={async (uploads) => {
+                  const hasImage = uploads.some((upload) => upload.file.type.startsWith('image'));
+                  let caption: IContent | undefined;
+                  const captionDraft = editor.children;
+                  if (hasImage) {
+                    caption = getTextContent();
+                  } else {
+                    sendText();
+                  }
+                  const sent = await handleSendUpload(uploads, caption);
+                  if (sent && caption && editor.children === captionDraft) clearText();
+                }}
                 imperativeHandlerRef={uploadBoardHandlers}
                 onCancel={handleCancelUpload}
               />

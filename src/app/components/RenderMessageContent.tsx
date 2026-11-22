@@ -268,7 +268,11 @@ export function RenderMessageContent({
     if (content.filename && content.filename !== content.body) {
       return (
         <MText
-          style={{ marginTop: config.space.S200 }}
+          style={
+            msgType === MsgType.Image
+              ? { marginBottom: config.space.S200 }
+              : { marginTop: config.space.S200 }
+          }
           edited={edited}
           content={content}
           renderBody={(props) => (
@@ -392,6 +396,7 @@ export function RenderMessageContent({
   if (msgType === MsgType.Image) {
     return (
       <>
+        {renderCaption()}
         <MImage
           content={getContent()}
           renderImageContent={(props) => (
@@ -402,6 +407,7 @@ export function RenderMessageContent({
               renderViewer={(p) => (
                 <ImageViewer
                   {...p}
+                  downloadName={getContent<IImageContent>().filename}
                   senderId={senderId}
                   senderName={displayName}
                   avatarUrl={senderAvatarUrl}
@@ -412,7 +418,6 @@ export function RenderMessageContent({
           )}
           outlined={outlineAttachment}
         />
-        {renderCaption()}
       </>
     );
   }

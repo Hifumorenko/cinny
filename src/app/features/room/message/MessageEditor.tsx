@@ -22,6 +22,7 @@ import {
 import { Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { IContent, IMentions, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { MsgType } from 'matrix-js-sdk/lib/@types/event';
 import { isKeyHotkey } from 'is-hotkey';
 import {
   AUTOCOMPLETE_PREFIXES,
@@ -76,33 +77,39 @@ export const MessageEditor = as<'div', MessageEditorProps>(
     const [autocompleteQuery, setAutocompleteQuery] =
       useState<AutocompleteQuery<AutocompletePrefix>>();
 
-    const getPrevBodyAndFormattedBody = useCallback((): [
-      string | undefined,
-      string | undefined,
-      IMentions | undefined
-    ] => {
+    const getPrevContent = useCallback((): IContent => {
       const evtId = mEvent.getId()!;
       const evtTimeline = room.getTimelineForEvent(evtId);
       const editedEvent =
         evtTimeline && getEditedEvent(evtId, mEvent, evtTimeline.getTimelineSet());
 
-      const content: IContent = editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent();
+      return editedEvent?.getContent()['m.new_content'] ?? mEvent.getContent();
+    }, [room, mEvent]);
+
+    const getPrevBodyAndFormattedBody = useCallback((): [
+      string | undefined,
+      string | undefined,
+      IMentions | undefined
+    ] => {
+      const content = getPrevContent();
       const { body, formatted_body: customHtml }: Record<string, unknown> = content;
 
       const mMentions: IMentions | undefined = content['m.mentions'];
+
+      if (content.msgtype === MsgType.Image && (!content.filename || content.filename === body)) {
+        return ['', undefined, mMentions];
+      }
 
       return [
         typeof body === 'string' ? body : undefined,
         typeof customHtml === 'string' ? customHtml : undefined,
         mMentions,
       ];
-    }, [room, mEvent]);
+    }, [getPrevContent]);
 
     const [saveState, save] = useAsyncCallback(
       useCallback(async () => {
-        const plainText = stripTwitterUrlQueries(
-          toPlainText(editor.children, isMarkdown).trim()
-        );
+        const plainText = stripTwitterUrlQueries(toPlainText(editor.children, isMarkdown).trim());
         const customHtml = stripTwitterUrlQueries(
           trimCustomHtml(
             toMatrixCustomHTML(editor.children, {
@@ -114,8 +121,10 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         );
 
         const [prevBody, prevCustomHtml, prevMentions] = getPrevBodyAndFormattedBody();
+        const prevContent = getPrevContent();
+        const isImage = prevContent.msgtype === MsgType.Image;
 
-        if (plainText === '') return undefined;
+        if (plainText === '' && (!isImage || !prevBody)) return undefined;
         if (prevBody) {
           if (prevCustomHtml && trimReplyFromFormattedBody(prevCustomHtml) === customHtml) {
             return undefined;
@@ -130,9 +139,16 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         }
 
         const newContent: IContent = {
-          msgtype: mEvent.getContent().msgtype,
+          ...(isImage ? prevContent : {}),
+          msgtype: prevContent.msgtype,
           body: plainText,
         };
+        if (isImage) {
+          newContent.filename = prevContent.filename ?? prevContent.body;
+          newContent.body = plainText || newContent.filename;
+          delete newContent.format;
+          delete newContent.formatted_body;
+        }
 
         const mentionData = getMentions(mx, roomId, editor);
 
@@ -143,14 +159,14 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         const mMentions = getMentionContent(Array.from(mentionData.users), mentionData.room);
         newContent['m.mentions'] = mMentions;
 
-        if (!customHtmlEqualsPlainText(customHtml, plainText)) {
+        if (plainText && !customHtmlEqualsPlainText(customHtml, plainText)) {
           newContent.format = 'org.matrix.custom.html';
           newContent.formatted_body = customHtml;
         }
 
         const content: IContent = {
           ...newContent,
-          body: `* ${plainText}`,
+          body: `* ${newContent.body}`,
           'm.new_content': newContent,
           'm.relates_to': {
             event_id: mEvent.getId(),
@@ -159,7 +175,7 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         };
 
         return mx.sendMessage(roomId, content);
-      }, [mx, editor, roomId, mEvent, isMarkdown, getPrevBodyAndFormattedBody])
+      }, [mx, editor, roomId, mEvent, isMarkdown, getPrevBodyAndFormattedBody, getPrevContent])
     );
 
     const handleSave = useCallback(() => {
@@ -262,7 +278,9 @@ export const MessageEditor = as<'div', MessageEditorProps>(
         )}
         <CustomEditor
           editor={editor}
-          placeholder="Edit message..."
+          placeholder={
+            mEvent.getContent().msgtype === MsgType.Image ? 'Edit caption...' : 'Edit message...'
+          }
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           bottom={
