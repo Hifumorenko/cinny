@@ -51,6 +51,8 @@ import { useMessageSpacingItems } from '../../../hooks/useMessageSpacing';
 import { useDateFormatItems } from '../../../hooks/useDateFormat';
 import { ScreenSize, useScreenSize } from '../../../hooks/useScreenSize';
 import { SequenceCardStyle } from '../styles.css';
+import { isDesktopApp } from '../../../utils/systemNotifications';
+import { Desktop } from './Desktop';
 
 type ThemeSelectorProps = {
   themeNames: Record<string, string>;
@@ -1174,6 +1176,7 @@ export function General({ requestClose }: GeneralProps) {
           <PageContent>
             <Box direction="Column" gap="700">
               <Appearance />
+              {isDesktopApp() && <Desktop />}
               <DateAndTime />
               <Editor />
               <Messages />
