@@ -35,6 +35,7 @@ import {
   useInboxNotificationsSelected,
 } from '../../hooks/router/useInbox';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
+import { DesktopPresence } from './DesktopPresence';
 
 function SystemEmojiFeature() {
   const [twitterEmoji] = useSetting(settingsAtom, 'twitterEmoji');
@@ -391,6 +392,7 @@ export function ClientNonUIFeatures({ children }: ClientNonUIFeaturesProps) {
       <PageZoomFeature />
       <FaviconUpdater />
       <DesktopNotificationClicks />
+      <DesktopPresence />
       <InviteNotifications />
       <MessageNotifications />
       {children}
