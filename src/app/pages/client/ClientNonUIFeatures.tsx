@@ -15,6 +15,7 @@ import { countNewInvitations } from '../../utils/invitationNotifications';
 import { shouldNotifyMessage } from '../../utils/messageNotifications';
 import {
   DesktopNotificationTarget,
+  canShowSystemNotification,
   isDesktopApp,
   showSystemNotification,
 } from '../../utils/systemNotifications';
@@ -104,6 +105,7 @@ function InviteNotifications() {
 
   const notify = useCallback(
     (count: number) => {
+      const token = cooldownRef.current.tokenFor('invites');
       showSystemNotification(
         'Invitation',
         {
@@ -119,10 +121,13 @@ function InviteNotifications() {
         () =>
           alive() &&
           store.get(settingsAtom).showNotifications &&
-          cooldownRef.current.latestEvent('invites') !== undefined
+          cooldownRef.current.latestEvent('invites') !== undefined,
+        () => {
+          if (!notificationSound) cooldownRef.current.release('invites', token);
+        }
       ).catch(console.error);
     },
-    [alive, navigate, store]
+    [alive, navigate, notificationSound, store]
   );
 
   const playSound = useCallback(() => {
@@ -138,7 +143,10 @@ function InviteNotifications() {
     }
     const newInvites = countNewInvitations(previousInvites, invites);
     if (newInvites > 0 && mx.getSyncState() === 'SYNCING') {
-      const showPopup = showNotifications && permission === 'granted';
+      const showPopup =
+        showNotifications &&
+        permission === 'granted' &&
+        canShowSystemNotification({ kind: 'invites' });
       if (!showPopup && !notificationSound) return;
       if (!cooldownRef.current.take('invites', JSON.stringify(invites))) return;
       if (showPopup) {
@@ -202,6 +210,7 @@ function MessageNotifications() {
       roomId: string;
       eventId: string;
     }) => {
+      const token = cooldownRef.current.tokenFor(roomId);
       showSystemNotification(
         roomName,
         {
@@ -227,6 +236,9 @@ function MessageNotifications() {
             document.hasFocus() &&
             (view.selectedRoomId === roomId || view.notificationSelected)
           );
+        },
+        () => {
+          if (!notificationSound) cooldownRef.current.release(roomId, token);
         }
       )
         .then((notification) => {
@@ -235,7 +247,7 @@ function MessageNotifications() {
         })
         .catch(console.error);
     },
-    [alive, mx, navigate, store]
+    [alive, mx, navigate, notificationSound, store]
   );
 
   const playSound = useCallback(() => {
@@ -286,7 +298,10 @@ function MessageNotifications() {
       if (room.hasUserReadEvent(userId, eventId)) return;
       if (!shouldNotifyMessage(mx, mEvent)) return;
 
-      const showPopup = showNotifications && permission === 'granted';
+      const showPopup =
+        showNotifications &&
+        permission === 'granted' &&
+        canShowSystemNotification({ kind: 'room', roomId: room.roomId, eventId });
       if (!showPopup && !notificationSound) return;
       if (!cooldownRef.current.take(room.roomId, eventId)) return;
 

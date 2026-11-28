@@ -9,6 +9,7 @@ import {
 
 function desktop(invoke) {
   const events = [];
+  globalThis.document = { visibilityState: 'hidden', hasFocus: () => false };
   globalThis.isTauri = true;
   globalThis.fetch = async () => new Response(null, { status: 404 });
   globalThis.window = {
@@ -86,6 +87,8 @@ test('sender avatars are normalized and passed as PNG bytes, not private media U
     };
   };
   globalThis.document = {
+    visibilityState: 'hidden',
+    hasFocus: () => false,
     createElement: () => ({
       getContext: () => ({ drawImage: () => {} }),
       toBlob: (callback, type) => {
@@ -182,11 +185,89 @@ test(
 test('a diagnostic toast uses native delivery without a room or invitation target', async () => {
   const calls = [];
   desktop(async (...args) => calls.push(args));
+  globalThis.document = { visibilityState: 'visible', hasFocus: () => true };
   await showSystemNotification('Cinny', { body: 'Test' }, () => {}, { kind: 'test' });
   assert.deepEqual(calls[0].slice(0, 2), [
     'show_desktop_notification',
     { title: 'Cinny', body: 'Test', target: { kind: 'test' } },
   ]);
+});
+
+test('focused Cinny suppresses room and invitation toasts before fetching avatars', async () => {
+  desktop(() => assert.fail('focused windows must not send automatic toasts'));
+  globalThis.document = { visibilityState: 'visible', hasFocus: () => true };
+  globalThis.fetch = () => assert.fail('suppressed toasts must not fetch avatars');
+  for (const target of [
+    { kind: 'room', roomId: '!room:example.test', eventId: '$message' },
+    { kind: 'invites' },
+  ]) {
+    assert.equal(
+      await showSystemNotification(
+        'Room',
+        { icon: 'https://example.test/avatar' },
+        () => {},
+        target
+      ),
+      undefined
+    );
+  }
+});
+
+test('focusing Cinny while an avatar loads cancels the pending toast', async () => {
+  let suppressed = 0;
+  desktop(() => assert.fail('a newly focused window must not receive the toast'));
+  globalThis.document = { visibilityState: 'visible', hasFocus: () => false };
+  globalThis.fetch = async () => {
+    document.hasFocus = () => true;
+    return new Response(null, { status: 404 });
+  };
+  await showSystemNotification(
+    'Room',
+    { icon: 'https://example.test/avatar' },
+    () => {},
+    {
+      kind: 'room',
+      roomId: '!room:example.test',
+      eventId: '$message',
+    },
+    undefined,
+    () => {
+      suppressed += 1;
+    }
+  );
+  assert.equal(suppressed, 1);
+});
+
+test('native focus suppression is reported to the caller without treating delivery as a failure', async () => {
+  desktop(async () => false);
+  let suppressed = 0;
+  await showSystemNotification(
+    'Room',
+    {},
+    () => {},
+    { kind: 'invites' },
+    undefined,
+    () => {
+      suppressed += 1;
+    }
+  );
+  assert.equal(suppressed, 1);
+});
+
+test('an unfocused visible window still receives desktop notifications', async () => {
+  const calls = [];
+  desktop(async (...args) => calls.push(args));
+  globalThis.document = { visibilityState: 'visible', hasFocus: () => false };
+  await showSystemNotification('Room', {}, () => {}, { kind: 'invites' });
+  assert.equal(calls.length, 1);
+});
+
+test('a hidden window remains eligible even if its document focus is stale', async () => {
+  const calls = [];
+  desktop(async (...args) => calls.push(args));
+  globalThis.document = { visibilityState: 'hidden', hasFocus: () => true };
+  await showSystemNotification('Room', {}, () => {}, { kind: 'invites' });
+  assert.equal(calls.length, 1);
 });
 
 test('requesting permission refreshes all mounted notification settings', async () => {
@@ -206,6 +287,7 @@ test('the localhost release webview also uses native notifications without the T
 });
 
 test('browser notifications retain click navigation, focus, and dismissal', async () => {
+  globalThis.document = { visibilityState: 'visible', hasFocus: () => false };
   let focused = false;
   let navigated = false;
   let closed = false;

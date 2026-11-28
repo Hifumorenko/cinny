@@ -65,6 +65,10 @@ export type DesktopNotificationTarget =
   | { kind: 'invites' }
   | { kind: 'room'; roomId: string; eventId: string };
 
+/** Explicit diagnostic toasts remain available from notification settings. */
+export const canShowSystemNotification = (target: DesktopNotificationTarget): boolean =>
+  target.kind === 'test' || document.visibilityState === 'hidden' || !document.hasFocus();
+
 export const isDesktopApp = (): boolean =>
   isTauri() ||
   (window.location.protocol === 'http:' &&
@@ -96,18 +100,24 @@ export const showSystemNotification = async (
   options: NotificationOptions,
   onClick: () => void,
   target: DesktopNotificationTarget,
-  shouldShow?: () => boolean
+  shouldShow?: () => boolean,
+  onSuppressed?: () => void
 ): Promise<Notification | undefined> => {
-  if (shouldShow && !shouldShow()) return undefined;
+  const suppressed = () => {
+    onSuppressed?.();
+    return undefined;
+  };
+  if (!canShowSystemNotification(target) || (shouldShow && !shouldShow())) return suppressed();
   if (isDesktopApp()) {
     const avatarPng = options.icon ? await loadNotificationAvatar(options.icon) : undefined;
-    if (shouldShow && !shouldShow()) return undefined;
-    await invoke('show_desktop_notification', {
+    if (!canShowSystemNotification(target) || (shouldShow && !shouldShow())) return suppressed();
+    const shown = await invoke<boolean>('show_desktop_notification', {
       title,
       body: options.body ?? '',
       target,
       ...(avatarPng ? { avatarPng } : {}),
     });
+    if (shown === false) return suppressed();
     return undefined;
   }
 
