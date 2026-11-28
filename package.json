@@ -16,7 +16,7 @@
     "check:prettier": "prettier --check .",
     "fix:prettier": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test:notifications": "node --test tests/notificationCooldown.test.mjs tests/systemNotifications.test.mjs",
+    "test:notifications": "node --test tests/notificationCooldown.test.mjs tests/systemNotifications.test.mjs tests/messageNotifications.test.mjs",
     "test:presence": "node --test tests/desktopPresence.test.mjs",
     "prepare": "husky install",
     "commit": "git-cz",

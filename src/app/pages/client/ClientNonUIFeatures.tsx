@@ -12,6 +12,7 @@ import InviteSound from '../../../../public/sound/invite.ogg';
 import { setFavicon } from '../../utils/dom';
 import { NotificationCooldown } from '../../utils/notificationCooldown';
 import { countNewInvitations } from '../../utils/invitationNotifications';
+import { shouldNotifyMessage } from '../../utils/messageNotifications';
 import {
   DesktopNotificationTarget,
   isDesktopApp,
@@ -283,7 +284,7 @@ function MessageNotifications() {
       const userId = mx.getUserId();
       if (!sender || !eventId || !userId || sender === userId) return;
       if (room.hasUserReadEvent(userId, eventId)) return;
-      if (!mx.getPushActionsForEvent(mEvent, true)?.notify) return;
+      if (!shouldNotifyMessage(mx, mEvent)) return;
 
       const showPopup = showNotifications && permission === 'granted';
       if (!showPopup && !notificationSound) return;
