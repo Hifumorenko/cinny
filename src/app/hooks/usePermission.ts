@@ -1,4 +1,32 @@
 import { useEffect, useState } from 'react';
+import { getSystemNotificationPermission } from '../utils/systemNotifications';
+
+export function useNotificationPermission(): PermissionState {
+  const [permission, setPermission] = useState<PermissionState>('prompt');
+
+  useEffect(() => {
+    let disposed = false;
+    const refresh = () => {
+      getSystemNotificationPermission()
+        .then((state) => {
+          if (!disposed) setPermission(state);
+        })
+        .catch(() => {
+          if (!disposed) setPermission('denied');
+        });
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    window.addEventListener('notification-permission-change', refresh);
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('notification-permission-change', refresh);
+    };
+  }, []);
+
+  return permission;
+}
 
 export const getNotificationState = (): PermissionState => {
   if ('Notification' in window) {

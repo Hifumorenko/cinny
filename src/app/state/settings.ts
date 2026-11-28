@@ -121,5 +121,6 @@ export const settingsAtom = atom<Settings, [Settings], undefined>(
   (get, set, update) => {
     set(baseSettings, update);
     setSettings(update);
+    return undefined;
   }
 );

@@ -6,7 +6,13 @@ import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
-import { getNotificationState, usePermissionState } from '../../../hooks/usePermission';
+import { SystemNotificationModeSelector } from './SystemNotificationModeSelector';
+import { useNotificationPermission } from '../../../hooks/usePermission';
+import {
+  isDesktopApp,
+  requestSystemNotificationPermission,
+  showSystemNotification,
+} from '../../../utils/systemNotifications';
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
@@ -85,16 +91,31 @@ function EmailNotification() {
 }
 
 export function SystemNotification() {
-  const notifPermission = usePermissionState('notifications', getNotificationState());
-  const [showNotifications, setShowNotifications] = useSetting(settingsAtom, 'showNotifications');
-  const [isNotificationSounds, setIsNotificationSounds] = useSetting(
-    settingsAtom,
-    'isNotificationSounds'
+  const notifPermission = useNotificationPermission();
+  const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
+  const [testState, sendTest] = useAsyncCallback(
+    useCallback(
+      () =>
+        showSystemNotification(
+          'Cinny',
+          { body: 'Desktop notifications are working.', silent: true },
+          () => undefined,
+          { kind: 'test' }
+        ),
+      []
+    )
   );
 
   const requestNotificationPermission = () => {
-    window.Notification.requestPermission();
+    requestSystemNotificationPermission().catch(console.error);
   };
+  let permissionDescription = 'Notifications are not supported by the system.';
+  if (isDesktopApp()) {
+    permissionDescription = 'Allow notifications for Cinny in your system notification settings.';
+  } else if ('Notification' in window) {
+    permissionDescription =
+      'Notification permission is blocked. Please allow notification permission from browser address bar.';
+  }
 
   return (
     <Box direction="Column" gap="100">
@@ -106,44 +127,54 @@ export function SystemNotification() {
         gap="400"
       >
         <SettingTile
-          title="Desktop Notifications"
+          title="Notification Mode"
           description={
-            notifPermission === 'denied' ? (
-              <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-                {'Notification' in window
-                  ? 'Notification permission is blocked. Please allow notification permission from browser address bar.'
-                  : 'Notifications are not supported by the system.'}
-              </Text>
-            ) : (
-              <span>Show desktop notifications when message arrive.</span>
-            )
+            <>
+              Repeated alerts from the same conversation are limited to once every five minutes
+              until you read it.
+              {showNotifications && notifPermission === 'denied' && (
+                <Text as="span" style={{ color: color.Critical.Main }} size="T200">
+                  {' '}
+                  {permissionDescription}
+                </Text>
+              )}
+            </>
           }
-          after={
-            notifPermission === 'prompt' ? (
+          after={<SystemNotificationModeSelector />}
+        >
+          {showNotifications && notifPermission === 'prompt' && (
+            <Box>
               <Button size="300" radii="300" onClick={requestNotificationPermission}>
-                <Text size="B300">Enable</Text>
+                <Text size="B300">Allow desktop notifications</Text>
               </Button>
-            ) : (
-              <Switch
-                disabled={notifPermission !== 'granted'}
-                value={showNotifications}
-                onChange={setShowNotifications}
-              />
-            )
-          }
-        />
-      </SequenceCard>
-      <SequenceCard
-        className={SequenceCardStyle}
-        variant="SurfaceVariant"
-        direction="Column"
-        gap="400"
-      >
-        <SettingTile
-          title="Notification Sound"
-          description="Play sound when new message arrive."
-          after={<Switch value={isNotificationSounds} onChange={setIsNotificationSounds} />}
-        />
+            </Box>
+          )}
+          {showNotifications && (isDesktopApp() || notifPermission === 'granted') && (
+            <Box direction="Column" gap="100">
+              <Box>
+                <Button
+                  size="300"
+                  radii="300"
+                  disabled={testState.status === AsyncStatus.Loading}
+                  onClick={() => sendTest().catch(() => undefined)}
+                >
+                  <Text size="B300">Send test notification</Text>
+                </Button>
+              </Box>
+              {testState.status === AsyncStatus.Error && (
+                <Text as="span" size="T200" style={{ color: color.Critical.Main }} role="alert">
+                  Could not send notification: {String(testState.error)}
+                </Text>
+              )}
+              {testState.status === AsyncStatus.Success && (
+                <Text as="span" size="T200" role="status">
+                  Test sent. If no banner appeared, check your system notification settings and Do
+                  Not Disturb.
+                </Text>
+              )}
+            </Box>
+          )}
+        </SettingTile>
       </SequenceCard>
       <SequenceCard
         className={SequenceCardStyle}
